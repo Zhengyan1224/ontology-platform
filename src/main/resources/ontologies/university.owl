@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:owl="http://www.w3.org/2002/07/owl#"
+         xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+         xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+         xmlns="http://example.org/university#">
+
+    <owl:Ontology rdf:about="http://example.org/university"/>
+
+    <!-- === Class Hierarchy === -->
+    <owl:Class rdf:about="http://example.org/university#Person"/>
+    <owl:Class rdf:about="http://example.org/university#Employee"/>
+    <owl:Class rdf:about="http://example.org/university#Professor"/>
+    <owl:Class rdf:about="http://example.org/university#Department"/>
+
+    <!-- Professor ⊑ Employee ⊑ Person -->
+    <rdfs:Class rdf:about="http://example.org/university#Professor">
+        <rdfs:subClassOf rdf:resource="http://example.org/university#Employee"/>
+    </rdfs:Class>
+
+    <rdfs:Class rdf:about="http://example.org/university#Employee">
+        <rdfs:subClassOf rdf:resource="http://example.org/university#Person"/>
+    </rdfs:Class>
+
+    <!-- === Object Properties === -->
+    <owl:ObjectProperty rdf:about="http://example.org/university#worksFor">
+        <rdfs:domain rdf:resource="http://example.org/university#Person"/>
+        <rdfs:range rdf:resource="http://example.org/university#Department"/>
+    </owl:ObjectProperty>
+
+    <!-- headOf ⊑ worksFor (subProperty) -->
+    <owl:ObjectProperty rdf:about="http://example.org/university#headOf">
+        <rdfs:subPropertyOf rdf:resource="http://example.org/university#worksFor"/>
+        <rdfs:domain rdf:resource="http://example.org/university#Employee"/>
+        <rdfs:range rdf:resource="http://example.org/university#Department"/>
+    </owl:ObjectProperty>
+
+    <!-- === Data Properties === -->
+    <owl:DatatypeProperty rdf:about="http://example.org/university#name">
+        <rdfs:domain rdf:resource="http://example.org/university#Person"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://example.org/university#departmentName">
+        <rdfs:domain rdf:resource="http://example.org/university#Department"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+    </owl:DatatypeProperty>
+
+</rdf:RDF>

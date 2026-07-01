@@ -1,0 +1,59 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: ontology-platform
+  datasource:
+    url: jdbc:h2:mem:books;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql
+      continue-on-error: true
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+ontology:
+  nlq:
+    llm:
+      api-key: sk-placeholder
+      model: gpt-4o-mini
+      base-url:
+  tenants:
+    - id: sample
+      name: Sample Books Database
+      jdbc-url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      jdbc-driver: org.h2.Driver
+      jdbc-username: sa
+      jdbc-password:
+      owl-path: ontologies/exampleBooks.owl
+      obda-path: ontologies/exampleBooks.obda
+
+    - id: university
+      name: University Reasoning Demo
+      jdbc-url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      jdbc-driver: org.h2.Driver
+      jdbc-username: sa
+      jdbc-password:
+      owl-path: ontologies/university.owl
+      obda-path: ontologies/university.obda
+
+logging:
+  level:
+    org.zhengyan.ontology.platform: DEBUG
+    it.unibz.inf.ontop: INFO

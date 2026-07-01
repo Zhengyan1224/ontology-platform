@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+         xmlns:owl="http://www.w3.org/2002/07/owl#"
+         xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#"
+         xmlns:xsd="http://www.w3.org/2001/XMLSchema#"
+         xmlns="http://meraka/moss/exampleBooks.owl#">
+
+    <owl:Ontology rdf:about="http://meraka/moss/exampleBooks.owl"/>
+
+    <owl:Class rdf:about="http://meraka/moss/exampleBooks.owl#Author"/>
+    <owl:Class rdf:about="http://meraka/moss/exampleBooks.owl#Book"/>
+    <owl:Class rdf:about="http://meraka/moss/exampleBooks.owl#Edition"/>
+
+    <owl:DatatypeProperty rdf:about="http://meraka/moss/exampleBooks.owl#name">
+        <rdfs:domain rdf:resource="http://meraka/moss/exampleBooks.owl#Author"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://meraka/moss/exampleBooks.owl#title">
+        <rdfs:domain rdf:resource="http://meraka/moss/exampleBooks.owl#Book"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://meraka/moss/exampleBooks.owl#genre">
+        <rdfs:domain rdf:resource="http://meraka/moss/exampleBooks.owl#Book"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#string"/>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://meraka/moss/exampleBooks.owl#dateOfPublication">
+        <rdfs:domain rdf:resource="http://meraka/moss/exampleBooks.owl#Edition"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#dateTime"/>
+    </owl:DatatypeProperty>
+
+    <owl:DatatypeProperty rdf:about="http://meraka/moss/exampleBooks.owl#editionNumber">
+        <rdfs:domain rdf:resource="http://meraka/moss/exampleBooks.owl#Edition"/>
+        <rdfs:range rdf:resource="http://www.w3.org/2001/XMLSchema#integer"/>
+    </owl:DatatypeProperty>
+
+    <owl:ObjectProperty rdf:about="http://meraka/moss/exampleBooks.owl#writtenBy">
+        <rdfs:domain rdf:resource="http://meraka/moss/exampleBooks.owl#Book"/>
+        <rdfs:range rdf:resource="http://meraka/moss/exampleBooks.owl#Author"/>
+    </owl:ObjectProperty>
+
+    <owl:ObjectProperty rdf:about="http://meraka/moss/exampleBooks.owl#hasEdition">
+        <rdfs:domain rdf:resource="http://meraka/moss/exampleBooks.owl#Book"/>
+        <rdfs:range rdf:resource="http://meraka/moss/exampleBooks.owl#Edition"/>
+    </owl:ObjectProperty>
+
+</rdf:RDF>

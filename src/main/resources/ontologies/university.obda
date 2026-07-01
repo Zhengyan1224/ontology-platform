@@ -1,0 +1,30 @@
+[PrefixDeclaration]
+owl:           http://www.w3.org/2002/07/owl#
+rdf:           http://www.w3.org/1999/02/22-rdf-syntax-ns#
+rdfs:          http://www.w3.org/2000/01/rdf-schema#
+xsd:           http://www.w3.org/2001/XMLSchema#
+:              http://example.org/university#
+
+[MappingDeclaration] @collection [[
+mappingId departments
+target    :dept-{dept_code} rdf:type :Department ; :departmentName "{dept_name}"^^xsd:string .
+source    SELECT dept_code, dept_name FROM tb_departments
+]]
+
+[MappingDeclaration] @collection [[
+mappingId employees
+target    :emp-{emp_code} rdf:type :Employee ; :name "{emp_name}"^^xsd:string .
+source    SELECT emp_code, emp_name FROM tb_employees
+]]
+
+[MappingDeclaration] @collection [[
+mappingId professors
+target    :prof-{prof_code} rdf:type :Professor ; :name "{prof_name}"^^xsd:string ; :worksFor :dept-{dept_code} .
+source    SELECT prof_code, prof_name, dept_code FROM tb_professors
+]]
+
+[MappingDeclaration] @collection [[
+mappingId deptHeads
+target    :emp-{emp_code} :headOf :dept-{dept_code} .
+source    SELECT emp_code, dept_code FROM tb_dept_heads
+]]

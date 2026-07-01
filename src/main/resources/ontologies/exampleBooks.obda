@@ -1,0 +1,28 @@
+[PrefixDeclaration]
+:		http://meraka/moss/exampleBooks.owl#
+owl:		http://www.w3.org/2002/07/owl#
+rdf:		http://www.w3.org/1999/02/22-rdf-syntax-ns#
+xsd:		http://www.w3.org/2001/XMLSchema#
+rdfs:		http://www.w3.org/2000/01/rdf-schema#
+
+[MappingDeclaration] @collection [[
+mappingId	cl_Authors
+target		:author/{wr_code} a :Author ; :name {wr_name} .
+source		SELECT "wr_code", "wr_name" FROM "tb_affiliated_writers"
+
+mappingId	cl_Books
+target		:book/{bk_code} a :Book ; :title {bk_title} .
+source		SELECT "bk_code", "bk_title" FROM "tb_books"
+
+mappingId	cl_Editions
+target		:edition/{ed_code} a :Edition ; :dateOfPublication {pub_date}^^xsd:dateTime ; :editionNumber {n_edt} .
+source		SELECT "ed_code", "pub_date", "n_edt" FROM "tb_edition"
+
+mappingId	op_writtenBy
+target		:book/{bk_code} :writtenBy :author/{wr_id} .
+source		SELECT "bk_code", "wr_id" FROM "tb_authors"
+
+mappingId	op_hasEdition
+target		:book/{bk_id} :hasEdition :edition/{ed_code} .
+source		SELECT "ed_code", "bk_id" FROM "tb_edition"
+]]

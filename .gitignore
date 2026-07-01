@@ -1,0 +1,60 @@
+# Maven
+target/
+*.class
+*.jar
+*.war
+*.zip
+*.tar.gz
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+release.properties
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# IDE - Eclipse
+.settings/
+.classpath
+.project
+bin/
+*.launch
+
+# IDE - VS Code
+.vscode/
+
+# IDE - NetBeans
+nbproject/
+nb-configuration.xml
+
+# OS
+*.log
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Temp files
+*.tmp
+*.temp
+*.bak
+
+# Environment
+.env
+.env.local
+
+# Java
+hs_err_pid*
+replay_pid*
+
+# Maven wrapper
+.mvn/
+mvnw
+mvnw.cmd
+
+# Ontop temp properties
+ontop-*.properties
