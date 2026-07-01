@@ -29,6 +29,8 @@ management:
       application: ${spring.application.name}
 
 ontology:
+  swagger:
+    enabled: true
   nlq:
     llm:
       api-key: sk-placeholder
