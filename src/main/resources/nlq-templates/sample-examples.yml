@@ -1,0 +1,28 @@
+examples:
+  - question: "List all authors"
+    sparql: |
+      PREFIX : <http://meraka/moss/exampleBooks.owl#>
+      SELECT ?author ?name WHERE { ?author a :Author . ?author :name ?name . }
+
+  - question: "Who wrote Harry Potter"
+    sparql: |
+      PREFIX : <http://meraka/moss/exampleBooks.owl#>
+      SELECT ?author ?name WHERE {
+        ?book a :Book .
+        ?book :title ?title .
+        ?book :writtenBy ?author .
+        ?author :name ?name .
+        FILTER(CONTAINS(LCASE(?title), LCASE("Harry Potter")))
+      }
+
+  - question: "How many authors"
+    sparql: |
+      PREFIX : <http://meraka/moss/exampleBooks.owl#>
+      SELECT (COUNT(?author) AS ?count) WHERE { ?author a :Author . }
+
+  - question: "Find author named J.K. Rowling"
+    sparql: |
+      PREFIX : <http://meraka/moss/exampleBooks.owl#>
+      SELECT ?author ?name WHERE {
+        ?author :name "J.K. Rowling" .
+      }

@@ -476,11 +476,90 @@ POST /api/v1/tenants/mydata/nlq     → 自然语言查询
 | GET | `/api/v1/tenants` | 列出所有租户 |
 | GET | `/api/v1/tenants/{id}/schema` | 查看租户本体描述 |
 | POST | `/api/v1/tenants/{id}/reinit` | 重新初始化引擎 |
-| POST | `/api/v1/tenants/{id}/sparql` | 执行 SPARQL 查询 |
+| POST | `/api/v1/tenants/{id}/sparql` | 执行 SPARQL 查询（支持多种输出格式，通过 `Accept` 头控制） |
 | POST | `/api/v1/tenants/{id}/sparql/explain` | SPARQL → SQL 翻译 |
-| POST | `/api/v1/tenants/{id}/nlq` | 自然语言查询 |
+| POST | `/api/v1/tenants/{id}/nlq` | 自然语言查询（可选 `sessionId` 字段支持多轮对话） |
+| GET | `/api/v1/tenants/{id}/nlq/stream?question=...&sessionId=...` | 自然语言查询 SSE 流式响应（分阶段推送 status → sparql → result → complete） |
 | GET | `/api/v1/audit-log` | 查看审计日志 |
 | POST | `/api/v1/audit-log/clear` | 清空审计日志 |
+
+### NLQ 自然语言查询
+
+自然语言查询支持两级 SPARQL 生成策略：**LLM**（需配置真实 API key）→ **模板回退**。
+
+#### 模板驱动（`nlq-templates/{tenantId}.yml`）
+
+每个租户可以通过 YAML 文件自定义自然语言 → SPARQL 映射规则，无需修改 Java 代码：
+
+```yaml
+rules:
+  - patterns:
+      - "list.*(all\\s+)?employees?"
+      - "who works here"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT ?person ?name WHERE { ?person a :Employee . ?person :name ?name . }
+    description: "List all employees"
+  - patterns:
+      - "who\\s+works?\\s+for\\s+(.+?)(\\?)?$"
+    sparql: "SELECT ?person ?name WHERE { ?person :worksFor ?dept . ?dept :departmentName \"{1}\" . ?person :name ?name . }"
+    params:
+      - group: 1
+```
+
+- 规则按顺序匹配，返回第一个匹配的 SPARQL
+- `{1}`, `{2}` 引用正则捕获组的值
+- 无 YAML 文件时自动回退到 Java 硬编码模板
+
+#### LLM Prompt 优化
+
+Prompt 模板外部化为 `nlq-templates/prompt-template.txt`，支持占位符：
+- `{{tenantId}}`、`{{schema}}`、`{{question}}`、`{{examples}}`、`{{history}}`
+
+每个租户可配置 few-shot 示例（`{tenantId}-examples.yml`），schema 描述带缩进类层次结构。提取 SPARQL 后自动校验是否包含 `SELECT` 或 `CONSTRUCT`。
+
+#### 流式响应（SSE）
+
+`GET /api/v1/tenants/{id}/nlq/stream` 使用 Server-Sent Events 分阶段推送：
+
+```
+event: status
+data: {"stage":"translating"}
+
+event: sparql
+data: {"sparql":"SELECT ?person ?name WHERE {...}"}
+
+event: result
+data: {"variables":["person","name"],"results":[...],"executionTimeMs":1234}
+
+event: complete
+data: {}
+```
+
+#### 多轮对话
+
+在请求中传入 `sessionId` 即可启用会话上下文：
+
+```json
+POST /api/v1/tenants/sample/nlq
+{"question": "list all authors", "sessionId": "my-session"}
+```
+
+后续请求携带同一 `sessionId`，历史 Q/A 将注入 LLM prompt。会话默认 30 分钟无活动自动过期。
+
+### SPARQL 输出格式
+
+`POST /api/v1/tenants/{id}/sparql` 通过 `Accept` 请求头选择返回格式：
+
+| `Accept` 值 | 格式 | 说明 |
+|-------------|------|------|
+| `application/json`（默认） | JSON | 标准 JSON 对象（Spring 序列化） |
+| `application/sparql-results+json` | SPARQL JSON | 遵循 SPARQL 1.1 Query Results JSON 格式 |
+| `application/sparql-results+xml` | SPARQL XML | 遵循 SPARQL 1.1 Query Results XML 格式 |
+| `text/csv` | CSV | 逗号分隔值 |
+| `text/tab-separated-values` | TSV | 制表符分隔值 |
+
+请求体支持 `Content-Type: application/json`（`{"query": "..."}`）和 `Content-Type: application/sparql-query`（裸 SPARQL 字符串，仅返回 JSON 格式）。
 
 完整 API 文档请访问 Swagger UI：`http://localhost:8080/swagger-ui.html`
 
@@ -505,7 +584,12 @@ ontology:
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `ontology.swagger.enabled` | `true` | 是否启用 Swagger |
+| `ontology.nlq.template-path` | `nlq-templates` | NLQ YAML 模板和 prompt 文件目录 |
 | `ontology.nlq.llm.api-key` | `sk-placeholder` | LLM API 密钥（设为占位符时使用模板模式） |
 | `ontology.nlq.llm.model` | `gpt-4o-mini` | LLM 模型名称 |
 | `ontology.nlq.llm.base-url` | (空) | LLM API 基础 URL（可用于兼容 OpenAI 的代理） |
+| `ontology.nlq.stream.timeout` | `60000` | SSE 流式响应超时时间（毫秒） |
+| `ontology.nlq.session.ttl` | `1800000` | 会话过期时间（毫秒，默认 30 分钟） |
+| `ontology.nlq.session.max` | `1000` | 最大同时会话数 |
+| `ontology.nlq.session.cleanup-interval` | `300000` | 过期会话清理间隔（毫秒，默认 5 分钟） |
 | `ontology.tenants` | — | 租户列表 |

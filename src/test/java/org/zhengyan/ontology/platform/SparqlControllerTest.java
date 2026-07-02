@@ -2,6 +2,7 @@ package org.zhengyan.ontology.platform;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -11,7 +12,9 @@ import org.zhengyan.ontology.platform.engine.EngineRegistry;
 import org.zhengyan.ontology.platform.engine.OntologyEngine;
 import org.zhengyan.ontology.platform.model.SparqlQueryResult;
 import org.zhengyan.ontology.platform.service.AuditService;
+import org.zhengyan.ontology.platform.service.CachedSparqlService;
 import org.zhengyan.ontology.platform.service.MetricsService;
+import org.zhengyan.ontology.platform.service.SparqlResultFormatter;
 
 import java.util.List;
 import java.util.Map;
@@ -22,6 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(SparqlController.class)
+@AutoConfigureMockMvc(addFilters = false)
 public class SparqlControllerTest {
 
     @Autowired
@@ -39,11 +43,17 @@ public class SparqlControllerTest {
     @MockitoBean
     private MetricsService metricsService;
 
+    @MockitoBean
+    private SparqlResultFormatter sparqlResultFormatter;
+
+    @MockitoBean
+    private CachedSparqlService cachedSparqlService;
+
     @Test
     void testExecuteSparql() throws Exception {
         given(engineRegistry.get("test")).willReturn(ontologyEngine);
         given(ontologyEngine.isHealthy()).willReturn(true);
-        given(ontologyEngine.executeQuery(anyString()))
+        given(cachedSparqlService.executeQuery(anyString(), anyString()))
                 .willReturn(new SparqlQueryResult(
                         List.of("s", "p", "o"),
                         List.of(Map.of("s", "test")),
@@ -62,7 +72,7 @@ public class SparqlControllerTest {
     void testExecuteSparqlDirect() throws Exception {
         given(engineRegistry.get("test")).willReturn(ontologyEngine);
         given(ontologyEngine.isHealthy()).willReturn(true);
-        given(ontologyEngine.executeQuery(anyString()))
+        given(cachedSparqlService.executeQuery(anyString(), anyString()))
                 .willReturn(new SparqlQueryResult(
                         List.of("s"),
                         List.of(Map.of("s", "test")),

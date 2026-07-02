@@ -5,13 +5,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.io.ResourceLoader;
 import org.zhengyan.ontology.platform.engine.EngineRegistry;
 import org.zhengyan.ontology.platform.engine.OntologyEngine;
 import org.zhengyan.ontology.platform.model.SparqlQueryResult;
-import org.zhengyan.ontology.platform.service.NaturalLanguageQueryService;
-import org.zhengyan.ontology.platform.service.NlqResult;
-import org.zhengyan.ontology.platform.service.OntologySchemaProvider;
-import org.zhengyan.ontology.platform.service.SparqlTemplateGenerator;
+import org.zhengyan.ontology.platform.service.*;
 
 import java.util.List;
 import java.util.Optional;
@@ -35,6 +33,12 @@ public class NaturalLanguageQueryServiceTest {
     @Mock
     private OntologyEngine ontologyEngine;
 
+    @Mock
+    private ResourceLoader resourceLoader;
+
+    @Mock
+    private SessionManager sessionManager;
+
     private NaturalLanguageQueryService nlqService;
 
     @Test
@@ -47,6 +51,7 @@ public class NaturalLanguageQueryServiceTest {
 
         nlqService = new NaturalLanguageQueryService(
                 engineRegistry, templateGenerator, schemaProvider,
+                resourceLoader, sessionManager,
                 "", "gpt-4o-mini", "");
 
         NlqResult result = nlqService.answer("test", "List all classes");
@@ -62,6 +67,7 @@ public class NaturalLanguageQueryServiceTest {
 
         nlqService = new NaturalLanguageQueryService(
                 engineRegistry, templateGenerator, schemaProvider,
+                resourceLoader, sessionManager,
                 "", "gpt-4o-mini", "");
 
         assertThrows(IllegalArgumentException.class,

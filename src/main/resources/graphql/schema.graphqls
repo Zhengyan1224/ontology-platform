@@ -1,0 +1,26 @@
+type Query {
+    sparql(tenantId: String!, query: String!): SparqlResult
+    nlq(tenantId: String!, question: String!): NlqResult
+}
+
+type SparqlResult {
+    variables: [String]
+    results: [Row]
+    executionTimeMs: Int
+    translatedSql: String
+}
+
+type Row {
+    values: JSON
+}
+
+type NlqResult {
+    question: String
+    sparql: String
+    mode: String
+    variables: [String]
+    results: [Row]
+    executionTimeMs: Int
+}
+
+scalar JSON

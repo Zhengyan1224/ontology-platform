@@ -13,11 +13,42 @@ public class SparqlTemplateGenerator {
     private static final String PREFIX_UNI = "PREFIX : <http://example.org/university#>";
     private static final String PREFIX_BOOKS = "PREFIX : <http://meraka/moss/exampleBooks.owl#>";
 
-    private final Map<String, List<Template>> tenantTemplates = new LinkedHashMap<>();
+    private final TemplateLoader templateLoader;
+    private final Map<String, List<Template>> hardcodedTemplates = new LinkedHashMap<>();
 
-    public SparqlTemplateGenerator() {
+    public SparqlTemplateGenerator(TemplateLoader templateLoader) {
+        this.templateLoader = templateLoader;
         registerUniversityTemplates();
         registerBooksTemplates();
+    }
+
+    public Optional<String> generate(String tenantId, String question) {
+        Optional<List<TemplateLoader.LoadedRule>> yamlRules = templateLoader.load(tenantId);
+        if (yamlRules.isPresent()) {
+            String normalized = question.toLowerCase().trim();
+            for (TemplateLoader.LoadedRule rule : yamlRules.get()) {
+                if (rule.matches(normalized)) {
+                    return Optional.of(rule.apply(question));
+                }
+            }
+            return Optional.empty();
+        }
+
+        List<Template> templates = hardcodedTemplates.get(tenantId);
+        if (templates == null) return Optional.empty();
+
+        String normalized = question.toLowerCase().trim();
+        for (Template template : templates) {
+            if (template.pattern.matcher(normalized).find()) {
+                return Optional.of(template.generator.apply(question.trim()));
+            }
+        }
+        return Optional.empty();
+    }
+
+    public boolean hasTemplatesFor(String tenantId) {
+        if (templateLoader.hasTemplatesFor(tenantId)) return true;
+        return hardcodedTemplates.containsKey(tenantId) && !hardcodedTemplates.get(tenantId).isEmpty();
     }
 
     private void registerUniversityTemplates() {
@@ -63,7 +94,7 @@ public class SparqlTemplateGenerator {
         templates.add(new Template("count\\s+(all\\s+)?(employees?|people|persons?)",
                 q -> PREFIX_UNI + "\nSELECT (COUNT(?person) AS ?count) WHERE { ?person a :Employee . }"));
 
-        tenantTemplates.put("university", templates);
+        hardcodedTemplates.put("university", templates);
     }
 
     private void registerBooksTemplates() {
@@ -108,27 +139,7 @@ public class SparqlTemplateGenerator {
                             "}";
                 }));
 
-        tenantTemplates.put("sample", templates);
-    }
-
-    public Optional<String> generate(String tenantId, String question) {
-        List<Template> templates = tenantTemplates.get(tenantId);
-        if (templates == null) return Optional.empty();
-
-        String normalized = question.toLowerCase().trim();
-
-        for (Template template : templates) {
-            if (template.pattern.matcher(normalized).find()) {
-                String sparql = template.generator.apply(question.trim());
-                return Optional.of(sparql);
-            }
-        }
-
-        return Optional.empty();
-    }
-
-    public boolean hasTemplatesFor(String tenantId) {
-        return tenantTemplates.containsKey(tenantId) && !tenantTemplates.get(tenantId).isEmpty();
+        hardcodedTemplates.put("sample", templates);
     }
 
     private static String extractMatch(String input, String regex) {
@@ -145,12 +156,10 @@ public class SparqlTemplateGenerator {
     }
 
     private static class Template {
-        final String patternStr;
         final Pattern pattern;
         final Function<String, String> generator;
 
         Template(String regex, Function<String, String> generator) {
-            this.patternStr = regex;
             this.pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
             this.generator = generator;
         }

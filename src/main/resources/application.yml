@@ -12,7 +12,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql,classpath:db/init-tenants.sql,classpath:db/init-audit.sql
+      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql,classpath:db/init-tenants.sql,classpath:db/init-audit.sql,classpath:db/init-api-keys.sql,classpath:db/init-jwt-blacklist.sql
       continue-on-error: true
   h2:
     console:
@@ -36,13 +36,42 @@ ontology:
     api-keys:
       - admin-key-001
       - dev-key-002
+    admin-password: ${ADMIN_PASSWORD:admin123}
+    jwt:
+      secret: ${JWT_SECRET:ontology-platform-jwt-secret-key-min-256-bits-long-for-hs256}
+      expiration-ms: 86400000
+      blacklist:
+        cleanup-interval: 300000
   audit:
     retention-days: 90
+  cache:
+    sparql:
+      max-size: 500
+      ttl-seconds: 300
+    query:
+      max-size: 100
+      ttl-seconds: 600
+  rate-limit:
+    capacity: 20
+    refill-tokens: 10
+    refill-period-seconds: 60
+  owl-generation:
+    output-dir: generated-ontologies
+  viz:
+    max-edge-limit: 1000
+    cache-ttl-seconds: 300
   nlq:
-    llm:
-      api-key: sk-placeholder
-      model: gpt-4o-mini
-      base-url:
+      template-path: nlq-templates
+      stream:
+        timeout: 60000
+      session:
+        ttl: 1800000
+        max: 1000
+        cleanup-interval: 300000
+      llm:
+        api-key: ${LLM_API_KEY:sk-placeholder}
+        model: gpt-4o-mini
+        base-url:
   tenants:
     - id: sample
       name: Sample Books Database

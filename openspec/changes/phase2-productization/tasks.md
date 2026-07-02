@@ -1,11 +1,11 @@
 ## 1. API 认证与鉴权
 
-- [ ] 1.1 Add `spring-boot-starter-security` to `pom.xml`
-- [ ] 1.2 Add `ontology.auth.enabled` and `ontology.auth.api-keys` configuration to `application.yml` and test `application.yml`
-- [ ] 1.3 Create `SecurityConfig` — `@EnableWebSecurity` + `SecurityFilterChain`, configure public paths (`/api/v1/health`, swagger, h2-console), conditionally disable auth via `ontology.auth.enabled`
-- [ ] 1.4 Create `ApiKeyFilter` — `OncePerRequestFilter` that reads `X-API-Key` header, validates against configured keys, returns 401 on mismatch
-- [ ] 1.5 Update `SparqlControllerTest`, `HealthControllerTest` to work with or without auth (test profile disables auth)
-- [ ] 1.6 Write integration test: verify protected endpoint returns 401 without key, 200 with valid key
+- [x] 1.1 Add `spring-boot-starter-security` to `pom.xml`
+- [x] 1.2 Add `ontology.auth.enabled` and `ontology.auth.api-keys` configuration to `application.yml` and test `application.yml`
+- [x] 1.3 Create `SecurityConfig` — `@EnableWebSecurity` + `SecurityFilterChain`, configure public paths (`/api/v1/health`, swagger, h2-console), conditionally disable auth via `ontology.auth.enabled`
+- [x] 1.4 Create `ApiKeyFilter` — `OncePerRequestFilter` that reads `X-API-Key` header, validates against configured keys, returns 401 on mismatch
+- [x] 1.5 Update `SparqlControllerTest`, `HealthControllerTest` to work with or without auth (test profile disables auth)
+- [x] 1.6 Write integration test: verify protected endpoint returns 401 without key, 200 with valid key
 
 ## 2. SPARQL 结果格式多样化
 

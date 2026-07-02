@@ -1,17 +1,24 @@
 package org.zhengyan.ontology.platform.controller;
 
-import org.zhengyan.ontology.platform.engine.EngineRegistry;
-import org.zhengyan.ontology.platform.engine.OntologyEngine;
-import org.zhengyan.ontology.platform.model.SparqlQueryRequest;
-import org.zhengyan.ontology.platform.model.SparqlQueryResult;
-import org.zhengyan.ontology.platform.exception.OntologyPlatformException;
-import org.zhengyan.ontology.platform.service.AuditService;
-import org.zhengyan.ontology.platform.service.MetricsService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.zhengyan.ontology.platform.engine.EngineRegistry;
+import org.zhengyan.ontology.platform.engine.OntologyEngine;
+import org.zhengyan.ontology.platform.exception.OntologyPlatformException;
+import org.zhengyan.ontology.platform.model.SparqlQueryRequest;
+import org.zhengyan.ontology.platform.model.SparqlQueryResult;
+import org.zhengyan.ontology.platform.service.AuditService;
+import org.zhengyan.ontology.platform.service.CachedSparqlService;
+import org.zhengyan.ontology.platform.service.MetricsService;
+import org.zhengyan.ontology.platform.service.SparqlResultFormat;
+import org.zhengyan.ontology.platform.service.SparqlResultFormatter;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -23,21 +30,27 @@ public class SparqlController {
     private final EngineRegistry engineRegistry;
     private final AuditService auditService;
     private final MetricsService metricsService;
+    private final SparqlResultFormatter resultFormatter;
+    private final CachedSparqlService cachedSparqlService;
 
     public SparqlController(EngineRegistry engineRegistry, AuditService auditService,
-                            MetricsService metricsService) {
+                            MetricsService metricsService, SparqlResultFormatter resultFormatter,
+                            CachedSparqlService cachedSparqlService) {
         this.engineRegistry = engineRegistry;
         this.auditService = auditService;
         this.metricsService = metricsService;
+        this.resultFormatter = resultFormatter;
+        this.cachedSparqlService = cachedSparqlService;
     }
 
     @PostMapping(value = "/tenants/{tenantId}/sparql",
-            consumes = MediaType.APPLICATION_JSON_VALUE,
-            produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<SparqlQueryResult> executeSparql(
+            consumes = MediaType.APPLICATION_JSON_VALUE)
+    public Object executeSparql(
             @PathVariable String tenantId,
-            @Valid @RequestBody SparqlQueryRequest request) {
-        return doExecute(tenantId, request.getQuery());
+            @Valid @RequestBody SparqlQueryRequest request,
+            @RequestHeader(value = HttpHeaders.ACCEPT, required = false) String acceptHeader,
+            HttpServletResponse response) {
+        return doExecute(tenantId, request.getQuery(), acceptHeader, response);
     }
 
     @PostMapping(value = "/tenants/{tenantId}/sparql",
@@ -46,10 +59,55 @@ public class SparqlController {
     public ResponseEntity<SparqlQueryResult> executeSparqlDirect(
             @PathVariable String tenantId,
             @RequestBody String sparqlQuery) {
-        return doExecute(tenantId, sparqlQuery);
+        return doExecuteJson(tenantId, sparqlQuery);
     }
 
-    private ResponseEntity<SparqlQueryResult> doExecute(String tenantId, String sparql) {
+    private Object doExecute(String tenantId, String sparql, String acceptHeader,
+                             HttpServletResponse response) {
+        OntologyEngine engine = engineRegistry.get(tenantId);
+        if (!engine.isHealthy()) {
+            throw OntologyPlatformException.engineNotReady(tenantId);
+        }
+
+        SparqlResultFormat format = SparqlResultFormat.fromAccept(acceptHeader)
+                .orElse(null);
+
+        if (format == null || format.isGraphFormat()) {
+            response.setStatus(HttpServletResponse.SC_NOT_ACCEPTABLE);
+            return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
+        }
+
+        long start = System.currentTimeMillis();
+        try {
+            SparqlQueryResult result = cachedSparqlService.executeQuery(tenantId, sparql);
+            long elapsed = System.currentTimeMillis() - start;
+            auditService.recordSparqlQuery(tenantId, sparql, result.getTranslatedSql(),
+                    elapsed, true, null, result.getResults().size());
+            metricsService.recordQuery(tenantId, elapsed, true);
+
+            if (format == SparqlResultFormat.JSON) {
+                return ResponseEntity.ok(result);
+            }
+
+            response.setContentType(format.getMediaType().toString());
+
+            return (StreamingResponseBody) out -> {
+                try {
+                    resultFormatter.writeTupleResult(format, result, out);
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to write tuple result", e);
+                }
+            };
+        } catch (Exception e) {
+            long elapsed = System.currentTimeMillis() - start;
+            auditService.recordSparqlQuery(tenantId, sparql, null,
+                    elapsed, false, e.getMessage(), 0);
+            metricsService.recordQuery(tenantId, elapsed, false);
+            throw OntologyPlatformException.queryError(e.getMessage(), e);
+        }
+    }
+
+    private ResponseEntity<SparqlQueryResult> doExecuteJson(String tenantId, String sparql) {
         OntologyEngine engine = engineRegistry.get(tenantId);
         if (!engine.isHealthy()) {
             throw OntologyPlatformException.engineNotReady(tenantId);
@@ -57,7 +115,7 @@ public class SparqlController {
 
         long start = System.currentTimeMillis();
         try {
-            SparqlQueryResult result = engine.executeQuery(sparql);
+            SparqlQueryResult result = cachedSparqlService.executeQuery(tenantId, sparql);
             long elapsed = System.currentTimeMillis() - start;
             auditService.recordSparqlQuery(tenantId, sparql, result.getTranslatedSql(),
                     elapsed, true, null, result.getResults().size());

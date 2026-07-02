@@ -28,6 +28,13 @@ public class AuditService {
         this.retentionDays = retentionDays;
     }
 
+    public void recordAuthEvent(String principal, String action, boolean success, String detail) {
+        jdbcTemplate.update(
+                "INSERT INTO audit_logs (tenant_id, query_type, query_text, duration_ms, success, error_message) VALUES (?, ?, ?, ?, ?, ?)",
+                principal, "AUTH", action, 0L, success, detail);
+        log.info("AUDIT AUTH {} for '{}': {}", success ? "OK" : "FAIL", principal, action);
+    }
+
     public void recordSparqlQuery(String tenantId, String sparql, String translatedSql,
                                   long durationMs, boolean success, String errorMessage,
                                   int resultCount) {

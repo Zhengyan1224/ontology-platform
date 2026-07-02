@@ -1,54 +1,93 @@
 package org.zhengyan.ontology.platform.config;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.zhengyan.ontology.platform.service.ApiKeyFilter;
+import org.zhengyan.ontology.platform.service.ApiKeyService;
+import org.zhengyan.ontology.platform.service.AuditService;
+import org.zhengyan.ontology.platform.service.JwtAuthFilter;
+import org.zhengyan.ontology.platform.service.JwtService;
+import org.zhengyan.ontology.platform.service.RateLimitFilter;
+import org.zhengyan.ontology.platform.repository.JwtBlacklistRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.servlet.util.matcher.MvcRequestMatcher;
-import org.springframework.web.servlet.handler.HandlerMappingIntrospector;
+import org.springframework.security.web.session.SessionManagementFilter;
 
 import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @ConditionalOnProperty(name = "ontology.auth.enabled", havingValue = "true", matchIfMissing = true)
 public class SecurityConfig {
 
     @Bean
-    @ConfigurationProperties(prefix = "ontology.auth")
-    public AuthProperties authProperties() {
-        return new AuthProperties(true, List.of());
+    public ApiKeyFilter apiKeyFilter(ApiKeyService apiKeyService, AuditService auditService) {
+        return new ApiKeyFilter(apiKeyService, auditService, List.of(
+                "/api/v1/health",
+                "/api/v1/auth/",
+                "/swagger-ui/",
+                "/v3/api-docs/",
+                "/h2-console/"
+        ));
     }
 
     @Bean
-    public ApiKeyFilter apiKeyFilter(AuthProperties authProperties) {
-        return new ApiKeyFilter(authProperties);
+    public JwtAuthFilter jwtAuthFilter(JwtService jwtService, JwtBlacklistRepository jwtBlacklistRepository, AuditService auditService) {
+        return new JwtAuthFilter(jwtService, jwtBlacklistRepository, auditService);
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, ApiKeyFilter apiKeyFilter) throws Exception {
+    public RateLimitFilter rateLimitFilter(
+            @Value("${ontology.rate-limit.capacity}") long capacity,
+            @Value("${ontology.rate-limit.refill-tokens}") long refillTokens,
+            @Value("${ontology.rate-limit.refill-period-seconds}") long refillPeriodSeconds,
+            AuditService auditService) {
+        return new RateLimitFilter(capacity, refillTokens, refillPeriodSeconds, auditService);
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http,
+                                           ApiKeyFilter apiKeyFilter,
+                                           JwtAuthFilter jwtAuthFilter,
+                                           RateLimitFilter rateLimitFilter) throws Exception {
         http
-            .csrf(csrf -> csrf.ignoringRequestMatchers(
-                new MvcRequestMatcher(new HandlerMappingIntrospector(), "/**")
-            ))
+            .csrf(csrf -> csrf.disable())
             .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                    new MvcRequestMatcher(new HandlerMappingIntrospector(), "/api/v1/health"),
-                    new MvcRequestMatcher(new HandlerMappingIntrospector(), "/swagger-ui/**"),
-                    new MvcRequestMatcher(new HandlerMappingIntrospector(), "/v3/api-docs/**"),
-                    new MvcRequestMatcher(new HandlerMappingIntrospector(), "/h2-console/**")
+                    "/api/v1/health",
+                    "/api/v1/auth/**",
+                    "/swagger-ui/**",
+                    "/v3/api-docs/**",
+                    "/h2-console/**"
                 ).permitAll()
                 .anyRequest().authenticated()
             )
-            .addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class);
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setContentType("application/json");
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Authentication required\"}");
+                })
+                .accessDeniedHandler((request, response, accessDeniedException) -> {
+                    response.setContentType("application/json");
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.getWriter().write("{\"error\":\"Forbidden\",\"message\":\"Insufficient permissions\"}");
+                })
+            )
+            .addFilterBefore(rateLimitFilter, ApiKeyFilter.class)
+            .addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(jwtAuthFilter, ApiKeyFilter.class);
 
         return http.build();
     }

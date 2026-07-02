@@ -6,17 +6,24 @@ import org.zhengyan.ontology.platform.engine.EngineRegistry;
 import org.zhengyan.ontology.platform.engine.OntologyEngine;
 import org.zhengyan.ontology.platform.model.CreateTenantRequest;
 import org.zhengyan.ontology.platform.model.Tenant;
+import org.zhengyan.ontology.platform.model.ApiKeyEntity;
+import org.zhengyan.ontology.platform.service.ApiKeyService;
 import org.zhengyan.ontology.platform.service.AuditService;
+import org.zhengyan.ontology.platform.service.CachedSparqlService;
 import org.zhengyan.ontology.platform.service.DynamicSchemaProvider;
 import org.zhengyan.ontology.platform.service.MetricsService;
 import org.zhengyan.ontology.platform.service.OntologySchemaProvider;
+import org.zhengyan.ontology.platform.service.OntologyGraphService;
+import org.zhengyan.ontology.platform.service.OwlGeneratorService;
 import org.zhengyan.ontology.platform.service.QueryAuditLog;
 import org.zhengyan.ontology.platform.service.TenantConfigValidator;
 import org.zhengyan.ontology.platform.service.TenantPersistenceService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,8 +35,12 @@ public class AdminController {
     private final EngineRegistry engineRegistry;
     private final OntologySchemaProvider schemaProvider;
     private final DynamicSchemaProvider dynamicSchemaProvider;
+    private final ApiKeyService apiKeyService;
     private final AuditService auditService;
+    private final CachedSparqlService cachedSparqlService;
     private final MetricsService metricsService;
+    private final OwlGeneratorService owlGeneratorService;
+    private final OntologyGraphService ontologyGraphService;
     private final TenantPersistenceService tenantPersistenceService;
     private final TenantConfigValidator tenantConfigValidator;
 
@@ -37,16 +48,24 @@ public class AdminController {
                            EngineRegistry engineRegistry,
                            OntologySchemaProvider schemaProvider,
                            DynamicSchemaProvider dynamicSchemaProvider,
+                           ApiKeyService apiKeyService,
                            AuditService auditService,
+                           CachedSparqlService cachedSparqlService,
                            MetricsService metricsService,
+                           OntologyGraphService ontologyGraphService,
+                           OwlGeneratorService owlGeneratorService,
                            TenantPersistenceService tenantPersistenceService,
                            TenantConfigValidator tenantConfigValidator) {
         this.tenantConfig = tenantConfig;
         this.engineRegistry = engineRegistry;
         this.schemaProvider = schemaProvider;
         this.dynamicSchemaProvider = dynamicSchemaProvider;
+        this.apiKeyService = apiKeyService;
         this.auditService = auditService;
+        this.cachedSparqlService = cachedSparqlService;
         this.metricsService = metricsService;
+        this.ontologyGraphService = ontologyGraphService;
+        this.owlGeneratorService = owlGeneratorService;
         this.tenantPersistenceService = tenantPersistenceService;
         this.tenantConfigValidator = tenantConfigValidator;
     }
@@ -67,6 +86,7 @@ public class AdminController {
     }
 
     @PostMapping("/tenants")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createTenant(@Valid @RequestBody CreateTenantRequest request) {
         if (engineRegistry.contains(request.getId())) {
             Map<String, String> err = new LinkedHashMap<>();
@@ -105,6 +125,7 @@ public class AdminController {
     }
 
     @PutMapping("/tenants/{tenantId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateTenant(@PathVariable String tenantId,
                                           @Valid @RequestBody CreateTenantRequest request) {
         Tenant existing = findTenant(tenantId);
@@ -144,6 +165,7 @@ public class AdminController {
     }
 
     @DeleteMapping("/tenants/{tenantId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> deleteTenant(@PathVariable String tenantId) {
         Tenant existing = findTenant(tenantId);
         if (existing == null) {
@@ -157,6 +179,16 @@ public class AdminController {
         tenantPersistenceService.deleteById(tenantId);
 
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/tenants/{tenantId}/graph")
+    public ResponseEntity<?> graph(@PathVariable String tenantId) {
+        try {
+            Map<String, Object> result = ontologyGraphService.getGraph(tenantId);
+            return ResponseEntity.ok(result);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "TENANT_NOT_FOUND"));
+        }
     }
 
     @GetMapping("/tenants/{tenantId}/schema")
@@ -177,9 +209,32 @@ public class AdminController {
         return ResponseEntity.ok(result);
     }
 
+    @PostMapping("/tenants/{tenantId}/generate-owl")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> generateOwl(@PathVariable String tenantId) {
+        Tenant tenant = findTenant(tenantId);
+        if (tenant == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "TENANT_NOT_FOUND"));
+        }
+        try {
+            String owl = owlGeneratorService.generateOwl(tenant);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("tenantId", tenantId);
+            result.put("owl", owl);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put("error", "OWL_GENERATION_FAILED");
+            err.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
+        }
+    }
+
     @PostMapping("/tenants/{tenantId}/reinit")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> reinitialize(@PathVariable String tenantId) {
         engineRegistry.reinitialize(tenantId);
+        cachedSparqlService.evictForTenant(tenantId);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("tenantId", tenantId);
         result.put("status", "reinitialized");
@@ -197,10 +252,20 @@ public class AdminController {
     }
 
     @PostMapping("/audit-log/clear")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> clearAuditLog() {
         auditService.clearLogs();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("status", "cleared");
+        return ResponseEntity.ok(result);
+    }
+
+    @PostMapping("/cache/clear")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> clearCache() {
+        cachedSparqlService.evictAll();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("status", "cache_cleared");
         return ResponseEntity.ok(result);
     }
 
@@ -220,6 +285,71 @@ public class AdminController {
         return m;
     }
 
+    @GetMapping("/api-keys")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> listApiKeys() {
+        List<Map<String, Object>> keys = apiKeyService.listKeys().stream().map(k -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", k.getId());
+            m.put("keyPrefix", k.getKeyPrefix());
+            m.put("name", k.getName());
+            m.put("role", k.getRole());
+            m.put("enabled", k.isEnabled());
+            m.put("createdAt", k.getCreatedAt());
+            m.put("lastUsedAt", k.getLastUsedAt());
+            m.put("expiresAt", k.getExpiresAt());
+            return m;
+        }).toList();
+        return ResponseEntity.ok(keys);
+    }
+
+    @PostMapping("/api-keys")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> createApiKey(
+            @Valid @RequestBody ApiKeyRequest request) {
+        String rawKey = apiKeyService.generateKey(
+                request.getName(), request.getRole(), request.getExpiresAt());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("key", rawKey);
+        result.put("name", request.getName());
+        result.put("role", request.getRole());
+        result.put("message", "Save this key — it will not be shown again");
+        return ResponseEntity.status(HttpStatus.CREATED).body(result);
+    }
+
+    @PutMapping("/api-keys/{id}/toggle")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> toggleApiKey(@PathVariable Long id,
+                                                             @RequestParam boolean enabled) {
+        boolean updated = apiKeyService.toggleKey(id, enabled);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", id);
+        result.put("enabled", enabled);
+        result.put("status", updated ? "updated" : "not_found");
+        return updated ? ResponseEntity.ok(result)
+                : ResponseEntity.status(HttpStatus.NOT_FOUND).body(result);
+    }
+
+    @PostMapping("/api-keys/{id}/revoke")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Map<String, Object>> revokeApiKey(@PathVariable Long id) {
+        boolean toggled = apiKeyService.toggleKey(id, false);
+        apiKeyService.invalidateCache();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", id);
+        result.put("status", toggled ? "revoked" : "not_found");
+        return toggled ? ResponseEntity.ok(result)
+                : ResponseEntity.status(HttpStatus.NOT_FOUND).body(result);
+    }
+
+    @DeleteMapping("/api-keys/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> deleteApiKey(@PathVariable Long id) {
+        return apiKeyService.deleteKey(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
+    }
+
     private List<Tenant> getAllTenants() {
         List<Tenant> all = new ArrayList<>(tenantConfig.getTenants());
         for (Tenant persisted : tenantPersistenceService.findAll()) {
@@ -235,5 +365,18 @@ public class AdminController {
                 .filter(t -> t.getId().equals(tenantId))
                 .findFirst()
                 .orElse(null);
+    }
+
+    public static class ApiKeyRequest {
+        private String name;
+        private String role = "ROLE_READONLY";
+        private LocalDateTime expiresAt;
+
+        public String getName() { return name; }
+        public void setName(String name) { this.name = name; }
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
+        public LocalDateTime getExpiresAt() { return expiresAt; }
+        public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
     }
 }

@@ -135,4 +135,19 @@ class PlatformIntegrationTest {
         tenantPersistenceService.deleteById("integration-test-tenant");
         assertNull(tenantPersistenceService.findById("integration-test-tenant"));
     }
+
+    @Test
+    @Order(9)
+    void sparqlCsvFormat() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(HttpHeaders.ACCEPT, "text/csv");
+        HttpEntity<String> entity = new HttpEntity<>(
+                "{\"query\":\"SELECT ?s ?p ?o WHERE {?s ?p ?o} LIMIT 1\"}", headers);
+        ResponseEntity<String> response = rest.exchange(
+                "/api/v1/tenants/sample/sparql", HttpMethod.POST, entity, String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getHeaders().getContentType().toString().contains("text/csv"));
+        assertNotNull(response.getBody());
+    }
 }

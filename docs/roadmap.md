@@ -30,28 +30,31 @@
 
 ## 🟡 Phase 2 — 产品化完善
 
-- [ ] **2.1 API 认证与鉴权**
-  - 引入 Spring Security
-  - 支持 API Key (Header) 或 JWT 认证
-  - 为敏感端点（reinit、audit-log、clear）添加权限控制
+- [x] **2.1 API 认证与鉴权**
+  - API Key 持久化到 `api_keys` 表（SHA-256 哈希，非明文存储）
+  - JWT 登录 (`POST /api/v1/auth/login`) 返回 Bearer token
+  - 双认证通道: `X-API-Key` header（DB 验证）或 `Authorization: Bearer`（JWT）
+  - 三级 RBAC: `ROLE_ADMIN` > `ROLE_DEV` > `ROLE_READONLY`，`@PreAuthorize` 保护敏感端点
+  - 启动时从 `application.yml` 自动 seed 静态 API Key 到 DB
+  - 管理员 CRUD 管理 API Key 端点 (`GET/POST/PUT/DELETE /api/v1/api-keys`)
   - 可配置跳过认证（开发模式）
 
-- [ ] **2.2 SPARQL 结果格式多样化**
-  - 根据 `Accept` header 返回 SPARQL XML / CSV / TSV / JSON-LD
-  - `CONSTRUCT` 查询返回 Turtle 格式
+- [x] **2.2 SPARQL 结果格式多样化**
+  - 根据 `Accept` header 返回 CSV / TSV / SPARQL XML / SPARQL JSON（`writeTupleResult` + RDF4J writer）
+  - `SparqlResultFormatter` 统一转换逻辑，`SparqlResultFormat` 枚举管理 7 种格式
   - 保持现有 JSON 格式为默认
 
-- [ ] **2.3 NLQ 增强**
-  - **数据驱动模板**: 将 12 个硬编码 regex 改为 YAML/JSON 配置，每个租户可自定义
-  - **LLM prompt 优化**: 加入 few-shot 示例、更清晰的 schema 描述
-  - **流式响应**: NLQ 结果通过 SSE 逐步输出
-  - **多轮对话**: 在上下文中保存历史，支持追问
+- [x] **2.3 NLQ 增强**
+  - **数据驱动模板**: 11 个硬编码 regex 抽取为 YAML 外部配置（`nlq-templates/{tenantId}.yml`），`TemplateLoader` 加载，`SparqlTemplateGenerator` fallback
+  - **LLM prompt 优化**: prompt 模板外部化为 `prompt-template.txt`，注入 few-shot 示例（`{tenantId}-examples.yml`），schema 格式带缩进类层次
+  - **流式响应**: `GET /nlq/stream` SSE 端点 (`SseEmitter`)，分阶段推送 status → sparql → result → complete
+  - **多轮对话**: `SessionManager` 组件（TTL 过期 + LRU 淘汰），会话历史注入 prompt
 
 - [x] **2.4 集成测试** (Phase 1 已完成)
   - `PlatformIntegrationTest` (8 tests) — 覆盖租户 CRUD、schema 端点、审计日志全流程
   - `OwlSchemaParserTest` (6 tests) — 单元测试 OWL 解析
   - `ObdaMappingParserTest` (5 tests) — 单元测试 OBDA 解析
-  - 共 27 个测试全部通过（14 个原有 + 13 个新增）
+  - 共 65 个测试全部通过（含 NLQ 增强新增 29 个）
 
 ---
 
@@ -88,3 +91,6 @@
 | 日期 | 项目 | 备注 |
 |------|------|------|
 | 2026-07-02 | Phase 1 核心扩展 | 动态租户 API、动态 Schema 发现、持久化审计日志全部完成。27/27 测试通过。归档为 `phase1-core-extensions` |
+| 2026-07-02 | Phase 2.2 SPARQL 结果格式多样化 | CSV / TSV / SPARQL XML / SPARQL JSON 格式支持完成。共 36 个测试通过。 |
+| 2026-07-02 | Phase 2.3 NLQ 增强 | 数据驱动模板、LLM prompt 优化、SSE 流式响应、多轮对话完成。共 65 个测试通过。 |
+| 2026-07-02 | Phase 2.1 API 认证与鉴权 | API Key 持久化 + JWT + RBAC + CRUD 端点 + 9 个集成测试。共 71 个测试通过。 |

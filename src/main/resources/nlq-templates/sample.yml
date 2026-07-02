@@ -1,0 +1,60 @@
+rules:
+  - patterns:
+      - "list.*(all\\s+)?authors?"
+    sparql: |
+      PREFIX : <http://meraka/moss/exampleBooks.owl#>
+      SELECT ?author ?name WHERE { ?author a :Author . ?author :name ?name . }
+    description: "List all authors"
+
+  - patterns:
+      - "list.*(all\\s+)?books?"
+    sparql: |
+      PREFIX : <http://meraka/moss/exampleBooks.owl#>
+      SELECT ?book ?title WHERE { ?book a :Book . ?book :title ?title . }
+    description: "List all books"
+
+  - patterns:
+      - "who\\s+wrote\\s+(.+?)(\\?)?$"
+    sparql: |
+      PREFIX : <http://meraka/moss/exampleBooks.owl#>
+      SELECT ?author ?name WHERE {
+        ?book a :Book .
+        ?book :title ?title .
+        ?book :writtenBy ?author .
+        ?author :name ?name .
+        FILTER(CONTAINS(LCASE(?title), LCASE("{1}")))
+      }
+    params:
+      - group: 1
+    description: "Find authors who wrote a specific book"
+
+  - patterns:
+      - "(find|search)\\s+(\\w+\\s+)*named\\s+(.+?)(\\?)?$"
+    sparql: |
+      PREFIX : <http://meraka/moss/exampleBooks.owl#>
+      SELECT ?author ?name WHERE {
+        ?author :name "{3}" .
+      }
+    params:
+      - group: 3
+    description: "Find an author by name"
+
+  - patterns:
+      - "how\\s+many\\s+(authors?|writers?)"
+    sparql: |
+      PREFIX : <http://meraka/moss/exampleBooks.owl#>
+      SELECT (COUNT(?author) AS ?count) WHERE { ?author a :Author . }
+    description: "Count all authors"
+
+  - patterns:
+      - "(authors?|writers?)\\s+from\\s+(.+?)(\\?)?$"
+    sparql: |
+      PREFIX : <http://meraka/moss/exampleBooks.owl#>
+      SELECT ?author ?name WHERE {
+        ?author a :AffiliatedWriter .
+        ?author :name ?name .
+        FILTER(CONTAINS(LCASE(?name), LCASE("{2}")))
+      }
+    params:
+      - group: 2
+    description: "Find authors from a specific organization"

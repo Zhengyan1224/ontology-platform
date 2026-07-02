@@ -1,0 +1,65 @@
+rules:
+  - patterns:
+      - "list.*(all\\s+)?employees?"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT ?person ?name WHERE { ?person a :Employee . ?person :name ?name . }
+    description: "List all employees"
+
+  - patterns:
+      - "list.*(all\\s+)?professors?"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT ?person ?name WHERE { ?person a :Professor . ?person :name ?name . }
+    description: "List all professors"
+
+  - patterns:
+      - "list.*(all\\s+)?departments?"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT ?dept ?name WHERE { ?dept a :Department . ?dept :departmentName ?name . }
+    description: "List all departments"
+
+  - patterns:
+      - "who\\s+works?\\s+for\\s+(.+?)(\\?)?$"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT ?person ?name WHERE {
+        ?person :worksFor ?dept .
+        ?dept :departmentName "{1}" .
+        ?person :name ?name .
+      }
+    params:
+      - group: 1
+    description: "Find people working for a department"
+
+  - patterns:
+      - "(head|who\\s+heads?)\\s+of?\\s+(.+?)(\\?)?$"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT ?person ?name WHERE {
+        ?person :headOf ?dept .
+        ?dept :departmentName "{2}" .
+        ?person :name ?name .
+      }
+    params:
+      - group: 2
+    description: "Find the head of a department"
+
+  - patterns:
+      - "find\\s+(\\w+\\s+)*named\\s+(.+?)(\\?)?$"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT ?person ?name WHERE {
+        ?person :name "{2}" .
+      }
+    params:
+      - group: 2
+    description: "Find a person by name"
+
+  - patterns:
+      - "count\\s+(all\\s+)?(employees?|people|persons?)"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT (COUNT(?person) AS ?count) WHERE { ?person a :Employee . }
+    description: "Count all employees"

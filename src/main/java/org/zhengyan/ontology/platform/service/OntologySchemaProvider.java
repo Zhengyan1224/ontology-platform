@@ -6,10 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Component
 public class OntologySchemaProvider {
@@ -52,28 +50,39 @@ public class OntologySchemaProvider {
         ObdaMappingParser.ObdaSchema obdaSchema = obdaParser.parse(tenant.resolveObdaPath());
 
         StringBuilder sb = new StringBuilder();
-        sb.append("Tenant: ").append(tenant.getId()).append("\n");
 
         if (!obdaSchema.prefixes.isEmpty()) {
             String defaultPrefix = obdaSchema.prefixes.get(":");
             if (defaultPrefix != null) {
-                sb.append("PREFIX: <").append(defaultPrefix).append(">\n");
+                sb.append("PREFIX : <").append(defaultPrefix).append(">\n");
+            }
+            for (Map.Entry<String, String> entry : obdaSchema.prefixes.entrySet()) {
+                if (!":".equals(entry.getKey())) {
+                    sb.append("PREFIX ").append(entry.getKey()).append(" <").append(entry.getValue()).append(">\n");
+                }
             }
         }
+        sb.append("\n");
 
         if (!owlSchema.classes.isEmpty()) {
             sb.append("Classes:\n");
+            Map<String, List<String>> children = buildHierarchy(owlSchema.classHierarchy);
+            List<String> roots = findRoots(owlSchema.classHierarchy, owlSchema.classes);
+            for (String root : roots) {
+                printClassTree(sb, root, children, owlSchema.classes, 0);
+            }
+            Set<String> hierarchical = new HashSet<>(roots);
+            for (Map.Entry<String, List<String>> entry : children.entrySet()) {
+                hierarchical.add(entry.getKey());
+                for (String c : entry.getValue()) hierarchical.add(c);
+            }
             for (Map<String, Object> cls : owlSchema.classes) {
-                sb.append("  - :").append(cls.get("name")).append("\n");
+                String name = (String) cls.get("name");
+                if (!hierarchical.contains(name)) {
+                    sb.append("  - :").append(name).append("\n");
+                }
             }
-        }
-
-        if (!owlSchema.classHierarchy.isEmpty()) {
-            sb.append("Class Hierarchy:\n");
-            for (Map<String, Object> rel : owlSchema.classHierarchy) {
-                sb.append("  - :").append(toLocalName((String) rel.get("child")))
-                        .append(" ⊑ :").append(toLocalName((String) rel.get("parent"))).append("\n");
-            }
+            sb.append("\n");
         }
 
         if (!owlSchema.properties.isEmpty()) {
@@ -82,20 +91,72 @@ public class OntologySchemaProvider {
                 sb.append("  - :").append(prop.get("name"))
                         .append(" (").append(prop.get("type")).append(")\n");
             }
+            if (!owlSchema.subPropertyOf.isEmpty()) {
+                sb.append("  Sub-properties:\n");
+                for (Map<String, Object> rel : owlSchema.subPropertyOf) {
+                    sb.append("    - :").append(toLocalName((String) rel.get("child")))
+                            .append(" ⊑ :").append(toLocalName((String) rel.get("parent"))).append("\n");
+                }
+            }
+            sb.append("\n");
         }
 
         if (!obdaSchema.mappings.isEmpty()) {
-            sb.append("Mappings:\n");
+            sb.append("Database tables:\n");
             for (Map<String, Object> mapping : obdaSchema.mappings) {
-                sb.append("  - ").append(mapping.get("mappingId"));
                 if (mapping.get("sourceTable") != null) {
-                    sb.append(" → ").append(mapping.get("sourceTable"));
+                    sb.append("  - ").append(mapping.get("sourceTable"));
+                    sb.append(" → ").append(mapping.get("mappingId")).append("\n");
                 }
-                sb.append("\n");
             }
         }
 
         return sb.toString();
+    }
+
+    private Map<String, List<String>> buildHierarchy(List<Map<String, Object>> hierarchy) {
+        Map<String, List<String>> children = new LinkedHashMap<>();
+        for (Map<String, Object> rel : hierarchy) {
+            String child = toLocalName((String) rel.get("child"));
+            String parent = toLocalName((String) rel.get("parent"));
+            children.computeIfAbsent(parent, k -> new ArrayList<>()).add(child);
+        }
+        return children;
+    }
+
+    private List<String> findRoots(List<Map<String, Object>> hierarchy, List<Map<String, Object>> classes) {
+        Set<String> allChildren = new HashSet<>();
+        Set<String> allParents = new HashSet<>();
+        for (Map<String, Object> rel : hierarchy) {
+            allChildren.add(toLocalName((String) rel.get("child")));
+            allParents.add(toLocalName((String) rel.get("parent")));
+        }
+        Set<String> classNames = classes.stream()
+                .map(c -> (String) c.get("name"))
+                .collect(Collectors.toSet());
+        List<String> roots = new ArrayList<>();
+        for (String name : classNames) {
+            if (allParents.contains(name) && !allChildren.contains(name)) {
+                roots.add(name);
+            }
+        }
+        if (roots.isEmpty()) {
+            roots.addAll(allParents);
+        }
+        return roots;
+    }
+
+    private void printClassTree(StringBuilder sb, String name, Map<String, List<String>> children,
+                                List<Map<String, Object>> classes, int depth) {
+        StringBuilder indent = new StringBuilder();
+        for (int i = 0; i < depth; i++) indent.append("    ");
+        sb.append(indent).append("- :").append(name).append("\n");
+        List<String> kids = children.get(name);
+        if (kids != null) {
+            for (String kid : kids) {
+                printClassTree(sb, kid, children, classes, depth + 1);
+            }
+        }
     }
 
     private String toLocalName(String iri) {

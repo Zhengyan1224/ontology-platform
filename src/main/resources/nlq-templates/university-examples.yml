@@ -1,0 +1,28 @@
+examples:
+  - question: "List all employees"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT ?person ?name WHERE { ?person a :Employee . ?person :name ?name . }
+
+  - question: "Who works for Computer Science"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT ?person ?name WHERE {
+        ?person :worksFor ?dept .
+        ?dept :departmentName "Computer Science" .
+        ?person :name ?name .
+      }
+
+  - question: "Count all professors"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT (COUNT(?person) AS ?count) WHERE { ?person a :Professor . }
+
+  - question: "Head of Mathematics"
+    sparql: |
+      PREFIX : <http://example.org/university#>
+      SELECT ?person ?name WHERE {
+        ?person :headOf ?dept .
+        ?dept :departmentName "Mathematics" .
+        ?person :name ?name .
+      }
