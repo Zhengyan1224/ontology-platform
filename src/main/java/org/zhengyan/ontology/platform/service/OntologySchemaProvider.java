@@ -2,8 +2,11 @@ package org.zhengyan.ontology.platform.service;
 
 import org.zhengyan.ontology.platform.config.TenantConfig;
 import org.zhengyan.ontology.platform.model.Tenant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,63 +14,96 @@ import java.util.Map;
 @Component
 public class OntologySchemaProvider {
 
-    private final TenantConfig tenantConfig;
+    private static final Logger log = LoggerFactory.getLogger(OntologySchemaProvider.class);
 
-    public OntologySchemaProvider(TenantConfig tenantConfig) {
+    private final TenantConfig tenantConfig;
+    private final TenantPersistenceService tenantPersistenceService;
+    private final OwlSchemaParser owlParser;
+    private final ObdaMappingParser obdaParser;
+
+    public OntologySchemaProvider(TenantConfig tenantConfig,
+                                  TenantPersistenceService tenantPersistenceService,
+                                  OwlSchemaParser owlParser,
+                                  ObdaMappingParser obdaParser) {
         this.tenantConfig = tenantConfig;
+        this.tenantPersistenceService = tenantPersistenceService;
+        this.owlParser = owlParser;
+        this.obdaParser = obdaParser;
     }
 
     public Map<String, String> getSchemaDescriptions() {
         Map<String, String> schemas = new LinkedHashMap<>();
-        for (Tenant tenant : tenantConfig.getTenants()) {
+        for (Tenant tenant : getAllTenants()) {
             schemas.put(tenant.getId(), describeTenant(tenant));
         }
         return schemas;
     }
 
     public String getSchemaForTenant(String tenantId) {
-        return tenantConfig.getTenants().stream()
-                .filter(t -> t.getId().equals(tenantId))
-                .findFirst()
-                .map(this::describeTenant)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown tenant: " + tenantId));
+        Tenant tenant = findTenant(tenantId);
+        if (tenant == null) {
+            throw new IllegalArgumentException("Unknown tenant: " + tenantId);
+        }
+        return describeTenant(tenant);
     }
 
     private String describeTenant(Tenant tenant) {
-        if ("sample".equals(tenant.getId())) {
-            return """
-                    PREFIX: <http://meraka/moss/exampleBooks.owl#>
-                    Classes: :Author, :Book
-                    Properties: :name (author name), :title (book title), :writtenBy
-                    Mappings:
-                      - tb_authors (au_code, au_name) -> :Author
-                      - tb_books (bk_code, bk_title, wr_code) -> :Book
-                      - tb_affiliated_writers (wr_code, wr_name) -> :AffiliatedWriter
-                    Tables: tb_authors, tb_books, tb_affiliated_writers
-                    """;
+        OwlSchemaParser.OwlSchema owlSchema = owlParser.parse(tenant.resolveOwlPath());
+        ObdaMappingParser.ObdaSchema obdaSchema = obdaParser.parse(tenant.resolveObdaPath());
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Tenant: ").append(tenant.getId()).append("\n");
+
+        if (!obdaSchema.prefixes.isEmpty()) {
+            String defaultPrefix = obdaSchema.prefixes.get(":");
+            if (defaultPrefix != null) {
+                sb.append("PREFIX: <").append(defaultPrefix).append(">\n");
+            }
         }
-        if ("university".equals(tenant.getId())) {
-            return """
-                    PREFIX: <http://example.org/university#>
-                    Classes:
-                      - :Person (top-level, direct instances = employees)
-                      - :Employee (subclass of Person, mapped to tb_employees)
-                      - :Professor (subclass of Employee, mapped to tb_professors)
-                      - :Department (mapped to tb_departments)
-                    Properties:
-                      - :name (data property of Person)
-                      - :departmentName (data property of Department)
-                      - :worksFor (object prop: Person -> Department)
-                      - :headOf (subProperty of worksFor, Employee -> Department)
-                    Mappings:
-                      - tb_employees (emp_code, emp_name) -> :Employee
-                      - tb_professors (prof_code, prof_name, dept_code) -> :Professor
-                      - tb_departments (dept_code, dept_name) -> :Department
-                      - tb_dept_heads (emp_code, dept_code) -> :headOf
-                    Tables: tb_employees, tb_professors, tb_departments, tb_dept_heads
-                    """;
+
+        if (!owlSchema.classes.isEmpty()) {
+            sb.append("Classes:\n");
+            for (Map<String, Object> cls : owlSchema.classes) {
+                sb.append("  - :").append(cls.get("name")).append("\n");
+            }
         }
-        return "No schema available for tenant: " + tenant.getId();
+
+        if (!owlSchema.classHierarchy.isEmpty()) {
+            sb.append("Class Hierarchy:\n");
+            for (Map<String, Object> rel : owlSchema.classHierarchy) {
+                sb.append("  - :").append(toLocalName((String) rel.get("child")))
+                        .append(" ⊑ :").append(toLocalName((String) rel.get("parent"))).append("\n");
+            }
+        }
+
+        if (!owlSchema.properties.isEmpty()) {
+            sb.append("Properties:\n");
+            for (Map<String, Object> prop : owlSchema.properties) {
+                sb.append("  - :").append(prop.get("name"))
+                        .append(" (").append(prop.get("type")).append(")\n");
+            }
+        }
+
+        if (!obdaSchema.mappings.isEmpty()) {
+            sb.append("Mappings:\n");
+            for (Map<String, Object> mapping : obdaSchema.mappings) {
+                sb.append("  - ").append(mapping.get("mappingId"));
+                if (mapping.get("sourceTable") != null) {
+                    sb.append(" → ").append(mapping.get("sourceTable"));
+                }
+                sb.append("\n");
+            }
+        }
+
+        return sb.toString();
+    }
+
+    private String toLocalName(String iri) {
+        int hash = iri.lastIndexOf('#');
+        if (hash >= 0) return iri.substring(hash + 1);
+        int slash = iri.lastIndexOf('/');
+        if (slash >= 0) return iri.substring(slash + 1);
+        return iri;
     }
 
     public List<String> getExampleQueries(String tenantId) {
@@ -88,5 +124,22 @@ public class OntologySchemaProvider {
             );
         }
         return List.of();
+    }
+
+    private List<Tenant> getAllTenants() {
+        List<Tenant> all = new ArrayList<>(tenantConfig.getTenants());
+        for (Tenant persisted : tenantPersistenceService.findAll()) {
+            if (all.stream().noneMatch(t -> t.getId().equals(persisted.getId()))) {
+                all.add(persisted);
+            }
+        }
+        return all;
+    }
+
+    private Tenant findTenant(String tenantId) {
+        return getAllTenants().stream()
+                .filter(t -> t.getId().equals(tenantId))
+                .findFirst()
+                .orElse(null);
     }
 }

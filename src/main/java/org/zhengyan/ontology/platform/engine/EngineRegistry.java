@@ -16,8 +16,10 @@ public class EngineRegistry {
     private static final Logger log = LoggerFactory.getLogger(EngineRegistry.class);
 
     private final Map<String, OntologyEngine> engines = new ConcurrentHashMap<>();
+    private final Map<String, Tenant> tenantConfigs = new ConcurrentHashMap<>();
 
     public OntologyEngine getOrCreate(Tenant tenant) {
+        tenantConfigs.put(tenant.getId(), tenant);
         return engines.computeIfAbsent(tenant.getId(), id -> {
             log.info("Creating engine for tenant: {}", id);
             OntopEngine engine = new OntopEngine(tenant);
@@ -41,6 +43,7 @@ public class EngineRegistry {
 
     public void remove(String tenantId) {
         OntologyEngine engine = engines.remove(tenantId);
+        tenantConfigs.remove(tenantId);
         if (engine != null) {
             engine.destroy();
             log.info("Removed engine for tenant: {}", tenantId);
@@ -48,8 +51,12 @@ public class EngineRegistry {
     }
 
     public void reinitialize(String tenantId) {
+        Tenant tenant = tenantConfigs.get(tenantId);
+        if (tenant == null) {
+            throw new IllegalArgumentException("No tenant config found for reinitialization: " + tenantId);
+        }
         remove(tenantId);
-        // Will be lazily recreated on next getOrCreate call
+        getOrCreate(tenant);
     }
 
     public boolean contains(String tenantId) {

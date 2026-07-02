@@ -9,7 +9,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql
+      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql,classpath:db/init-tenants.sql,classpath:db/init-audit.sql
       continue-on-error: true
 
 management:
@@ -19,6 +19,10 @@ management:
         include: health,prometheus,info,metrics
 
 ontology:
+  auth:
+    enabled: false
+  audit:
+    retention-days: 90
   nlq:
     llm:
       api-key: sk-placeholder

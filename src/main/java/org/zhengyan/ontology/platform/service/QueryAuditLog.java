@@ -20,6 +20,14 @@ public class QueryAuditLog {
                          String generatedSparql, String translatedSql,
                          long durationMs, boolean success, String errorMessage,
                          int resultCount) {
+        this(id, tenantId, queryType, queryText, generatedSparql, translatedSql,
+                durationMs, success, errorMessage, resultCount, LocalDateTime.now());
+    }
+
+    public QueryAuditLog(long id, String tenantId, String queryType, String queryText,
+                         String generatedSparql, String translatedSql,
+                         long durationMs, boolean success, String errorMessage,
+                         int resultCount, LocalDateTime timestamp) {
         this.id = id;
         this.tenantId = tenantId;
         this.queryType = queryType;
@@ -30,7 +38,7 @@ public class QueryAuditLog {
         this.success = success;
         this.errorMessage = errorMessage;
         this.resultCount = resultCount;
-        this.timestamp = LocalDateTime.now();
+        this.timestamp = timestamp;
     }
 
     public long getId() { return id; }

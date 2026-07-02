@@ -12,7 +12,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql
+      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql,classpath:db/init-tenants.sql,classpath:db/init-audit.sql
       continue-on-error: true
   h2:
     console:
@@ -31,6 +31,13 @@ management:
 ontology:
   swagger:
     enabled: true
+  auth:
+    enabled: true
+    api-keys:
+      - admin-key-001
+      - dev-key-002
+  audit:
+    retention-days: 90
   nlq:
     llm:
       api-key: sk-placeholder
