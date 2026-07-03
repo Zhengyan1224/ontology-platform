@@ -85,9 +85,9 @@ public class SecurityConfig {
                     response.getWriter().write("{\"error\":\"Forbidden\",\"message\":\"Insufficient permissions\"}");
                 })
             )
-            .addFilterBefore(rateLimitFilter, ApiKeyFilter.class)
+            .addFilterBefore(rateLimitFilter, SessionManagementFilter.class)
             .addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterAfter(jwtAuthFilter, ApiKeyFilter.class);
+            .addFilterAfter(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

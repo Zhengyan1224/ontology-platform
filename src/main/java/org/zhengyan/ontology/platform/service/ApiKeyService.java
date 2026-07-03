@@ -3,6 +3,7 @@ package org.zhengyan.ontology.platform.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.zhengyan.ontology.platform.exception.OntologyPlatformException;
 import org.zhengyan.ontology.platform.model.ApiKeyEntity;
 import org.zhengyan.ontology.platform.repository.ApiKeyRepository;
 
@@ -128,7 +129,7 @@ public class ApiKeyService {
             byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
+            throw new OntologyPlatformException("SHA-256 not available", 500, "HASH_ERROR", e);
         }
     }
 }

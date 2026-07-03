@@ -16,6 +16,9 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+/**
+ * @author zhengyan
+ */
 @WebMvcTest(HealthController.class)
 @AutoConfigureMockMvc(addFilters = false)
 public class HealthControllerTest {

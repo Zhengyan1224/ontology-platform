@@ -19,6 +19,8 @@ public class AuditService {
 
     private static final Logger log = LoggerFactory.getLogger(AuditService.class);
 
+    private static final String INSERT_NLQ_SQL = "INSERT INTO audit_logs (tenant_id, query_type, query_text, generated_sparql, translated_sql, duration_ms, success, error_message, result_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
     private final JdbcTemplate jdbcTemplate;
     private final int retentionDays;
 
@@ -38,8 +40,7 @@ public class AuditService {
     public void recordSparqlQuery(String tenantId, String sparql, String translatedSql,
                                   long durationMs, boolean success, String errorMessage,
                                   int resultCount) {
-        jdbcTemplate.update(
-                "INSERT INTO audit_logs (tenant_id, query_type, query_text, generated_sparql, translated_sql, duration_ms, success, error_message, result_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+         jdbcTemplate.update(INSERT_NLQ_SQL,
                 tenantId, "SPARQL", sparql, null, translatedSql, durationMs, success, errorMessage, resultCount);
         log.debug("AUDIT [{}] SPARQL {} in {}ms", tenantId,
                 success ? "OK" : "FAIL", durationMs);
@@ -48,18 +49,17 @@ public class AuditService {
     public void recordNlqQuery(String tenantId, String question, String generatedSparql,
                                long durationMs, boolean success,
                                String errorMessage, int resultCount) {
-        jdbcTemplate.update(
-                "INSERT INTO audit_logs (tenant_id, query_type, query_text, generated_sparql, translated_sql, duration_ms, success, error_message, result_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        jdbcTemplate.update(INSERT_NLQ_SQL,
                 tenantId, "NLQ", question, generatedSparql, null, durationMs, success, errorMessage, resultCount);
         log.info("AUDIT [{}] NLQ {} in {}ms: '{}'",
                 tenantId, success ? "OK" : "FAIL", durationMs, question);
     }
 
+    @SuppressWarnings("java:S107")
     public void recordNlqQuery(String tenantId, String question, String generatedSparql,
                                String translatedSql, long durationMs, boolean success,
                                String errorMessage, int resultCount) {
-        jdbcTemplate.update(
-                "INSERT INTO audit_logs (tenant_id, query_type, query_text, generated_sparql, translated_sql, duration_ms, success, error_message, result_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        jdbcTemplate.update(INSERT_NLQ_SQL,
                 tenantId, "NLQ", question, generatedSparql, translatedSql, durationMs, success, errorMessage, resultCount);
         log.info("AUDIT [{}] NLQ {} in {}ms: '{}'",
                 tenantId, success ? "OK" : "FAIL", durationMs, question);

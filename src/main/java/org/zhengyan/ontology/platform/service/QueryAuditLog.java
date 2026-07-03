@@ -2,6 +2,9 @@ package org.zhengyan.ontology.platform.service;
 
 import java.time.LocalDateTime;
 
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class QueryAuditLog {
 
     private final long id;
@@ -16,6 +19,7 @@ public class QueryAuditLog {
     private final int resultCount;
     private final LocalDateTime timestamp;
 
+    @SuppressWarnings("java:S107")
     public QueryAuditLog(long id, String tenantId, String queryType, String queryText,
                          String generatedSparql, String translatedSql,
                          long durationMs, boolean success, String errorMessage,
@@ -24,6 +28,7 @@ public class QueryAuditLog {
                 durationMs, success, errorMessage, resultCount, LocalDateTime.now());
     }
 
+    @SuppressWarnings("java:S107")
     public QueryAuditLog(long id, String tenantId, String queryType, String queryText,
                          String generatedSparql, String translatedSql,
                          long durationMs, boolean success, String errorMessage,

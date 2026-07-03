@@ -8,6 +8,9 @@ import org.zhengyan.ontology.platform.model.Tenant;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * @author zhengyan
+ */
 public class Rdf4jOntologyEngineTest {
 
     private Tenant tenant;

@@ -16,6 +16,9 @@ import java.util.UUID;
 
 @Service
 @ConditionalOnProperty(name = "ontology.auth.enabled", havingValue = "true", matchIfMissing = true)
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class JwtService {
 
     private final SecretKey secretKey;

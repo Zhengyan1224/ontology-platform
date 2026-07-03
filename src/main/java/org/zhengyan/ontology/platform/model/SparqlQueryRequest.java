@@ -2,6 +2,9 @@ package org.zhengyan.ontology.platform.model;
 
 import java.util.List;
 
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class SparqlQueryRequest {
     private String query;
     private List<String> defaultGraphUris;

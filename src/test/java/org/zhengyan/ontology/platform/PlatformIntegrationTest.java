@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.core.ParameterizedTypeReference;
 import org.zhengyan.ontology.platform.service.AuditService;
 import org.zhengyan.ontology.platform.service.TenantPersistenceService;
 
@@ -20,6 +21,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class PlatformIntegrationTest {
+
+    private static final String CLASSES = "classes";
+    private static final String TEST_TENANT = "test-tenant";
+    private static final String FILTER_TEST = "filter-test";
+    private static final String INTEGRATION_TEST_TENANT = "integration-test-tenant";
 
     @Autowired
     private TestRestTemplate rest;
@@ -36,7 +42,8 @@ class PlatformIntegrationTest {
     @Test
     @Order(1)
     void healthEndpointWorks() {
-        ResponseEntity<Map> response = rest.getForEntity("/api/v1/health", Map.class);
+        ResponseEntity<Map<String, Object>> response = rest.exchange(
+                "/api/v1/health", HttpMethod.GET, null, new ParameterizedTypeReference<Map<String, Object>>() {});
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals("UP", response.getBody().get("status"));
@@ -45,7 +52,8 @@ class PlatformIntegrationTest {
     @Test
     @Order(2)
     void tenantsEndpointReturnsBuiltInTenants() {
-        ResponseEntity<List> response = rest.getForEntity("/api/v1/tenants", List.class);
+        ResponseEntity<List<Map<String, Object>>> response = rest.exchange(
+                "/api/v1/tenants", HttpMethod.GET, null, new ParameterizedTypeReference<List<Map<String, Object>>>() {});
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertTrue(response.getBody().size() >= 2);
@@ -54,11 +62,11 @@ class PlatformIntegrationTest {
     @Test
     @Order(3)
     void schemaEndpointReturnsStructuredData() {
-        ResponseEntity<Map> response = rest.getForEntity(
-                "/api/v1/tenants/university/schema", Map.class);
+        ResponseEntity<Map<String, Object>> response = rest.exchange(
+                "/api/v1/tenants/university/schema", HttpMethod.GET, null, new ParameterizedTypeReference<Map<String, Object>>() {});
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertTrue(response.getBody().containsKey("classes"));
+        assertTrue(response.getBody().containsKey(CLASSES));
         assertTrue(response.getBody().containsKey("properties"));
         assertTrue(response.getBody().containsKey("mappings"));
     }
@@ -66,12 +74,12 @@ class PlatformIntegrationTest {
     @Test
     @Order(4)
     void schemaEndpointForSample() {
-        ResponseEntity<Map> response = rest.getForEntity(
-                "/api/v1/tenants/sample/schema", Map.class);
+        ResponseEntity<Map<String, Object>> response = rest.exchange(
+                "/api/v1/tenants/sample/schema", HttpMethod.GET, null, new ParameterizedTypeReference<Map<String, Object>>() {});
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertTrue(response.getBody().containsKey("classes"));
-        List<Map<String, Object>> classes = (List<Map<String, Object>>) response.getBody().get("classes");
+        assertTrue(response.getBody().containsKey(CLASSES));
+        List<Map<String, Object>> classes = (List<Map<String, Object>>) response.getBody().get(CLASSES);
         assertTrue(classes.stream().anyMatch(c -> c.get("name").equals("Author")));
         assertTrue(classes.stream().anyMatch(c -> c.get("name").equals("Book")));
     }
@@ -79,12 +87,12 @@ class PlatformIntegrationTest {
     @Test
     @Order(5)
     void auditLogRecordsAndRetrieves() {
-        auditService.recordSparqlQuery("test-tenant", "SELECT ?s WHERE {?s ?p ?o}",
+        auditService.recordSparqlQuery(TEST_TENANT, "SELECT ?s WHERE {?s ?p ?o}",
                 "SELECT 1", 5, true, null, 1);
 
-        var logs = auditService.getLogs("test-tenant", null, 10, 0);
+        var logs = auditService.getLogs(TEST_TENANT, null, 10, 0);
         assertFalse(logs.isEmpty());
-        assertEquals("test-tenant", logs.get(0).getTenantId());
+        assertEquals(TEST_TENANT, logs.get(0).getTenantId());
         assertEquals("SPARQL", logs.get(0).getQueryType());
         assertTrue(logs.get(0).getDurationMs() >= 0);
     }
@@ -92,14 +100,14 @@ class PlatformIntegrationTest {
     @Test
     @Order(6)
     void auditLogFiltersByType() {
-        auditService.recordNlqQuery("filter-test", "List all books",
+        auditService.recordNlqQuery(FILTER_TEST, "List all books",
                 "SELECT ?book WHERE {}", 10, true, null, 2);
 
-        var nlqLogs = auditService.getLogs("filter-test", "NLQ", 10, 0);
+        var nlqLogs = auditService.getLogs(FILTER_TEST, "NLQ", 10, 0);
         assertFalse(nlqLogs.isEmpty());
         assertEquals("NLQ", nlqLogs.get(0).getQueryType());
 
-        var sparqlLogs = auditService.getLogs("filter-test", "SPARQL", 10, 0);
+        var sparqlLogs = auditService.getLogs(FILTER_TEST, "SPARQL", 10, 0);
         assertTrue(sparqlLogs.isEmpty());
     }
 
@@ -117,7 +125,7 @@ class PlatformIntegrationTest {
     @Order(8)
     void tenantPersistenceCrud() {
         var tenant = new org.zhengyan.ontology.platform.model.Tenant();
-        tenant.setId("integration-test-tenant");
+        tenant.setId(INTEGRATION_TEST_TENANT);
         tenant.setName("Integration Test");
         tenant.setJdbcUrl("jdbc:h2:mem:testdb");
         tenant.setJdbcDriver("org.h2.Driver");
@@ -127,13 +135,13 @@ class PlatformIntegrationTest {
         tenant.setObdaPath("ontologies/exampleBooks.obda");
 
         tenantPersistenceService.save(tenant);
-        assertNotNull(tenantPersistenceService.findById("integration-test-tenant"));
+        assertNotNull(tenantPersistenceService.findById(INTEGRATION_TEST_TENANT));
 
-        var found = tenantPersistenceService.findById("integration-test-tenant");
+        var found = tenantPersistenceService.findById(INTEGRATION_TEST_TENANT);
         assertEquals("Integration Test", found.getName());
 
-        tenantPersistenceService.deleteById("integration-test-tenant");
-        assertNull(tenantPersistenceService.findById("integration-test-tenant"));
+        tenantPersistenceService.deleteById(INTEGRATION_TEST_TENANT);
+        assertNull(tenantPersistenceService.findById(INTEGRATION_TEST_TENANT));
     }
 
     @Test

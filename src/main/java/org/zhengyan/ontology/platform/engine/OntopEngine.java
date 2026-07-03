@@ -130,7 +130,7 @@ public class OntopEngine implements OntologyEngine {
         } catch (Exception e) {
             return false;
         } finally {
-            if (conn != null) try { conn.close(); } catch (Exception ignored) {}
+            if (conn != null) try { conn.close(); } catch (Exception ignored) { /* connection already closed */ }
         }
     }
 
@@ -158,7 +158,7 @@ public class OntopEngine implements OntologyEngine {
         } catch (Exception e) {
             return "DOWN: " + e.getMessage();
         } finally {
-            if (conn != null) try { conn.close(); } catch (Exception ignored) {}
+            if (conn != null) try { conn.close(); } catch (Exception ignored) { /* connection already closed */ }
         }
     }
 

@@ -13,6 +13,7 @@ import java.util.*;
 public class ObdaMappingParser {
 
     private static final Logger log = LoggerFactory.getLogger(ObdaMappingParser.class);
+    private static final String SOURCE = "source";
 
     public ObdaSchema parse(String obdaPath) {
         ObdaSchema schema = new ObdaSchema();
@@ -35,41 +36,33 @@ public class ObdaMappingParser {
     }
 
     private void parseLines(List<String> lines, ObdaSchema schema) {
-        String currentPrefix = null;
         boolean inMapping = false;
         String currentMappingId = null;
         String currentTarget = null;
         StringBuilder currentSource = new StringBuilder();
+        boolean hasCurrentMapping = false;
 
         for (String line : lines) {
             String trimmed = line.trim();
 
             if (trimmed.startsWith("[PrefixDeclaration]")) {
                 inMapping = false;
-                continue;
-            }
-
-            if (trimmed.startsWith("[MappingDeclaration]")) {
+            } else if (trimmed.startsWith("[MappingDeclaration]")) {
                 inMapping = true;
-                continue;
-            }
-
-            if (inMapping) {
+            } else if (inMapping) {
                 if (trimmed.startsWith("mappingId")) {
-                    if (currentMappingId != null) {
+                    if (hasCurrentMapping) {
                         schema.mappings.add(createMapping(currentMappingId, currentTarget, currentSource.toString()));
                     }
                     currentMappingId = extractValue(trimmed);
-                    currentTarget = null;
                     currentSource = new StringBuilder();
+                    hasCurrentMapping = true;
                 } else if (trimmed.startsWith("target")) {
                     currentTarget = extractValue(trimmed);
-                } else if (trimmed.startsWith("source")) {
+                } else if (trimmed.startsWith(SOURCE)) {
                     currentSource = new StringBuilder(extractValue(trimmed));
-                } else if (!trimmed.isEmpty() && !trimmed.equals("]]")) {
-                    if (currentSource.length() > 0 && !trimmed.startsWith("source")) {
-                        currentSource.append(" ").append(trimmed);
-                    }
+                } else if (!trimmed.isEmpty() && !trimmed.equals("]]") && currentSource.length() > 0 && !trimmed.startsWith(SOURCE)) {
+                    currentSource.append(" ").append(trimmed);
                 }
             } else {
                 if (!trimmed.isEmpty() && !trimmed.startsWith("#") && trimmed.contains(":")) {
@@ -81,7 +74,7 @@ public class ObdaMappingParser {
             }
         }
 
-        if (currentMappingId != null) {
+        if (hasCurrentMapping) {
             schema.mappings.add(createMapping(currentMappingId, currentTarget, currentSource.toString()));
         }
     }
@@ -90,7 +83,7 @@ public class ObdaMappingParser {
         Map<String, Object> mapping = new LinkedHashMap<>();
         mapping.put("mappingId", id);
         mapping.put("target", target);
-        mapping.put("source", source);
+        mapping.put(SOURCE, source);
 
         String sourceTable = extractTableName(source);
         if (sourceTable != null) {

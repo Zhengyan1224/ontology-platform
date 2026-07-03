@@ -4,16 +4,19 @@ import org.springframework.http.MediaType;
 
 import java.util.Optional;
 
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public enum SparqlResultFormat {
 
-    JSON(MediaType.APPLICATION_JSON),
-    SPARQL_JSON(MediaType.valueOf("application/sparql-results+json")),
-    SPARQL_XML(MediaType.valueOf("application/sparql-results+xml")),
-    CSV(MediaType.valueOf("text/csv")),
-    TSV(MediaType.valueOf("text/tab-separated-values")),
-    TURTLE(MediaType.valueOf("text/turtle")),
-    RDF_XML(MediaType.valueOf("application/rdf+xml")),
-    JSON_LD(MediaType.valueOf("application/ld+json"));
+    JSON(MediaType.APPLICATION_JSON),          // JSON format
+    SPARQL_JSON(MediaType.valueOf("application/sparql-results+json")), // JSON format
+    SPARQL_XML(MediaType.valueOf("application/sparql-results+xml")),   // XML format
+    CSV(MediaType.valueOf("text/csv")),        // CSV format
+    TSV(MediaType.valueOf("text/tab-separated-values")), // TSV format
+    TURTLE(MediaType.valueOf("text/turtle")),  // Turtle format
+    RDF_XML(MediaType.valueOf("application/rdf+xml")),  // RDF/XML format
+    JSON_LD(MediaType.valueOf("application/ld+json"));  // JSON-LD format
 
     private final MediaType mediaType;
 

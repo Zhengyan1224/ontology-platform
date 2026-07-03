@@ -31,6 +31,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc(addFilters = false)
 public class NlqControllerTest {
 
+    private static final String LIST_ALL = "list all";
+
     @Autowired
     private MockMvc mockMvc;
 
@@ -45,16 +47,16 @@ public class NlqControllerTest {
 
     @Test
     void testBlockingQuery() throws Exception {
-        given(nlqService.answer(eq("test"), eq("list all"), any()))
-                .willReturn(new NlqResult("list all", "SELECT ?x WHERE {?x a :Test}",
+        given(nlqService.answer(eq("test"), eq(LIST_ALL), any()))
+                .willReturn(new NlqResult(LIST_ALL, "SELECT ?x WHERE {?x a :Test}",
                         "template", List.of("x"), List.of(Map.of("x", "v1")), 5));
 
         mockMvc.perform(post("/api/v1/tenants/test/nlq")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"question\":\"list all\"}"))
+                        .content("{\"question\":\"" + LIST_ALL + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mode").value("template"))
-                .andExpect(jsonPath("$.question").value("list all"))
+                .andExpect(jsonPath("$.question").value(LIST_ALL))
                 .andExpect(jsonPath("$.variables[0]").value("x"));
     }
 
@@ -73,10 +75,10 @@ public class NlqControllerTest {
                 }
             });
             return null;
-        }).when(nlqService).streamAnswer(eq("test"), eq("list all"), any(), any(SseEmitter.class));
+        }).when(nlqService).streamAnswer(eq("test"), eq(LIST_ALL), any(), any(SseEmitter.class));
 
         MvcResult result = mockMvc.perform(get("/api/v1/tenants/test/nlq/stream")
-                        .param("question", "list all"))
+                        .param("question", LIST_ALL))
                 .andExpect(request().asyncStarted())
                 .andReturn();
 
@@ -99,10 +101,10 @@ public class NlqControllerTest {
                 }
             });
             return null;
-        }).when(nlqService).streamAnswer(eq("test"), eq("list all"), eq("session-1"), any(SseEmitter.class));
+        }).when(nlqService).streamAnswer(eq("test"), eq(LIST_ALL), eq("session-1"), any(SseEmitter.class));
 
         MvcResult result = mockMvc.perform(get("/api/v1/tenants/test/nlq/stream")
-                        .param("question", "list all")
+                        .param("question", LIST_ALL)
                         .param("sessionId", "session-1"))
                 .andExpect(request().asyncStarted())
                 .andReturn();

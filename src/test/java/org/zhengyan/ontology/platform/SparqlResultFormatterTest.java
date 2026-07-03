@@ -11,7 +11,13 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * @author zhengyan
+ */
 public class SparqlResultFormatterTest {
+
+    private static final String EXAMPLE_URI_1 = "http://example.org/1";
+    private static final String UTF_8 = "UTF-8";
 
     private final SparqlResultFormatter formatter = new SparqlResultFormatter();
 
@@ -19,7 +25,7 @@ public class SparqlResultFormatterTest {
         return new SparqlQueryResult(
                 List.of("s", "p", "o"),
                 List.of(
-                        Map.of("s", "http://example.org/1", "p", "http://example.org/type", "o", "http://example.org/Thing"),
+                        Map.of("s", EXAMPLE_URI_1, "p", "http://example.org/type", "o", "http://example.org/Thing"),
                         Map.of("s", "http://example.org/2", "p", "http://example.org/label", "o", "\"hello\"")
                 ),
                 5
@@ -30,36 +36,36 @@ public class SparqlResultFormatterTest {
     void testCsvFormat() throws Exception {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         formatter.writeTupleResult(SparqlResultFormat.CSV, sampleResult(), bos);
-        String output = bos.toString("UTF-8");
+        String output = bos.toString(UTF_8);
         assertTrue(output.contains("s"));
-        assertTrue(output.contains("http://example.org/1"));
+        assertTrue(output.contains(EXAMPLE_URI_1));
     }
 
     @Test
     void testTsvFormat() throws Exception {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         formatter.writeTupleResult(SparqlResultFormat.TSV, sampleResult(), bos);
-        String output = bos.toString("UTF-8");
+        String output = bos.toString(UTF_8);
         assertTrue(output.contains("s"));
-        assertTrue(output.contains("http://example.org/1"));
+        assertTrue(output.contains(EXAMPLE_URI_1));
     }
 
     @Test
     void testSparqlXmlFormat() throws Exception {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         formatter.writeTupleResult(SparqlResultFormat.SPARQL_XML, sampleResult(), bos);
-        String output = bos.toString("UTF-8");
+        String output = bos.toString(UTF_8);
         assertTrue(output.contains("<results"));
-        assertTrue(output.contains("http://example.org/1"));
+        assertTrue(output.contains(EXAMPLE_URI_1));
     }
 
     @Test
     void testSparqlJsonFormat() throws Exception {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         formatter.writeTupleResult(SparqlResultFormat.SPARQL_JSON, sampleResult(), bos);
-        String output = bos.toString("UTF-8");
+        String output = bos.toString(UTF_8);
         assertTrue(output.contains("s"));
-        assertTrue(output.contains("http://example.org/1"));
+        assertTrue(output.contains(EXAMPLE_URI_1));
     }
 
     @Test

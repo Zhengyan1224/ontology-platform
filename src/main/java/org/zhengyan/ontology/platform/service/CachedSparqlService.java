@@ -8,6 +8,9 @@ import org.zhengyan.ontology.platform.engine.OntologyEngine;
 import org.zhengyan.ontology.platform.model.SparqlQueryResult;
 
 @Service
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class CachedSparqlService {
 
     private final EngineRegistry engineRegistry;
@@ -32,6 +35,7 @@ public class CachedSparqlService {
 
     @CacheEvict(value = "sparqlResults", allEntries = true)
     public void evictAll() {
+        // TODO: implement cache eviction logic
     }
 
     public void evictForTenant(String tenantId) {

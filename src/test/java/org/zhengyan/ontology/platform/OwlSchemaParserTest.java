@@ -7,11 +7,15 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class OwlSchemaParserTest {
 
+    private static final String CHILD = "child";
+    private static final String PARENT = "parent";
+    private static final String UNIVERSITY_OWL = "ontologies/university.owl";
+
     private final OwlSchemaParser parser = new OwlSchemaParser();
 
     @Test
     void parseUniversityOwl() {
-        OwlSchemaParser.OwlSchema schema = parser.parse("ontologies/university.owl");
+        OwlSchemaParser.OwlSchema schema = parser.parse(UNIVERSITY_OWL);
 
         assertFalse(schema.classes.isEmpty());
         assertTrue(schema.classes.stream().anyMatch(c -> c.get("name").equals("Person")));
@@ -22,20 +26,20 @@ class OwlSchemaParserTest {
 
     @Test
     void parseUniversityClassHierarchy() {
-        OwlSchemaParser.OwlSchema schema = parser.parse("ontologies/university.owl");
+        OwlSchemaParser.OwlSchema schema = parser.parse(UNIVERSITY_OWL);
 
         assertFalse(schema.classHierarchy.isEmpty());
         assertTrue(schema.classHierarchy.stream()
-                .anyMatch(h -> h.get("child").toString().endsWith("#Professor")
-                        && h.get("parent").toString().endsWith("#Employee")));
+                .anyMatch(h -> h.get(CHILD).toString().endsWith("#Professor")
+                        && h.get(PARENT).toString().endsWith("#Employee")));
         assertTrue(schema.classHierarchy.stream()
-                .anyMatch(h -> h.get("child").toString().endsWith("#Employee")
-                        && h.get("parent").toString().endsWith("#Person")));
+                .anyMatch(h -> h.get(CHILD).toString().endsWith("#Employee")
+                        && h.get(PARENT).toString().endsWith("#Person")));
     }
 
     @Test
     void parseUniversityProperties() {
-        OwlSchemaParser.OwlSchema schema = parser.parse("ontologies/university.owl");
+        OwlSchemaParser.OwlSchema schema = parser.parse(UNIVERSITY_OWL);
 
         assertTrue(schema.properties.stream()
                 .anyMatch(p -> p.get("name").equals("worksFor") && p.get("type").equals("object")));
@@ -49,12 +53,12 @@ class OwlSchemaParserTest {
 
     @Test
     void parseUniversitySubPropertyOf() {
-        OwlSchemaParser.OwlSchema schema = parser.parse("ontologies/university.owl");
+        OwlSchemaParser.OwlSchema schema = parser.parse(UNIVERSITY_OWL);
 
         assertFalse(schema.subPropertyOf.isEmpty());
         assertTrue(schema.subPropertyOf.stream()
-                .anyMatch(sp -> sp.get("child").toString().endsWith("#headOf")
-                        && sp.get("parent").toString().endsWith("#worksFor")));
+                .anyMatch(sp -> sp.get(CHILD).toString().endsWith("#headOf")
+                        && sp.get(PARENT).toString().endsWith("#worksFor")));
     }
 
     @Test

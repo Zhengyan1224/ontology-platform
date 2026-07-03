@@ -61,6 +61,7 @@ public class NaturalLanguageQueryServiceTest {
     }
 
     @Test
+    @SuppressWarnings("java:S100")
     void testQueryViaTemplates_FallbackEnsuresSparql() {
         given(templateGenerator.generate(anyString(), anyString()))
                 .willReturn(Optional.empty());

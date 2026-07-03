@@ -1,5 +1,8 @@
 package org.zhengyan.ontology.platform.exception;
 
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class OntologyPlatformException extends RuntimeException {
     private final int httpStatus;
     private final String errorCode;

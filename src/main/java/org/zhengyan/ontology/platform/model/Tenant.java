@@ -1,5 +1,8 @@
 package org.zhengyan.ontology.platform.model;
 
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class Tenant {
     private String id;
     private String name;

@@ -1,6 +1,5 @@
 package org.zhengyan.ontology.platform.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.graphql.data.method.annotation.Argument;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.stereotype.Controller;
@@ -17,14 +16,11 @@ public class GraphQLDataFetcher {
 
     private final EngineRegistry engineRegistry;
     private final NaturalLanguageQueryService nlqService;
-    private final ObjectMapper objectMapper;
 
     public GraphQLDataFetcher(EngineRegistry engineRegistry,
-                              NaturalLanguageQueryService nlqService,
-                              ObjectMapper objectMapper) {
+                              NaturalLanguageQueryService nlqService) {
         this.engineRegistry = engineRegistry;
         this.nlqService = nlqService;
-        this.objectMapper = objectMapper;
     }
 
     @QueryMapping

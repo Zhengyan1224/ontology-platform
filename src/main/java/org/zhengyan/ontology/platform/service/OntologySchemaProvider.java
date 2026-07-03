@@ -2,8 +2,6 @@ package org.zhengyan.ontology.platform.service;
 
 import org.zhengyan.ontology.platform.config.TenantConfig;
 import org.zhengyan.ontology.platform.model.Tenant;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -12,7 +10,8 @@ import java.util.stream.Collectors;
 @Component
 public class OntologySchemaProvider {
 
-    private static final Logger log = LoggerFactory.getLogger(OntologySchemaProvider.class);
+    private static final String CHILD = "child";
+    private static final String PARENT = "parent";
 
     private final TenantConfig tenantConfig;
     private final TenantPersistenceService tenantPersistenceService;
@@ -94,8 +93,8 @@ public class OntologySchemaProvider {
             if (!owlSchema.subPropertyOf.isEmpty()) {
                 sb.append("  Sub-properties:\n");
                 for (Map<String, Object> rel : owlSchema.subPropertyOf) {
-                    sb.append("    - :").append(toLocalName((String) rel.get("child")))
-                            .append(" ⊑ :").append(toLocalName((String) rel.get("parent"))).append("\n");
+                    sb.append("    - :").append(toLocalName((String) rel.get(CHILD)))
+                            .append(" ⊑ :").append(toLocalName((String) rel.get(PARENT))).append("\n");
                 }
             }
             sb.append("\n");
@@ -117,8 +116,8 @@ public class OntologySchemaProvider {
     private Map<String, List<String>> buildHierarchy(List<Map<String, Object>> hierarchy) {
         Map<String, List<String>> children = new LinkedHashMap<>();
         for (Map<String, Object> rel : hierarchy) {
-            String child = toLocalName((String) rel.get("child"));
-            String parent = toLocalName((String) rel.get("parent"));
+            String child = toLocalName((String) rel.get(CHILD));
+            String parent = toLocalName((String) rel.get(PARENT));
             children.computeIfAbsent(parent, k -> new ArrayList<>()).add(child);
         }
         return children;
@@ -128,8 +127,8 @@ public class OntologySchemaProvider {
         Set<String> allChildren = new HashSet<>();
         Set<String> allParents = new HashSet<>();
         for (Map<String, Object> rel : hierarchy) {
-            allChildren.add(toLocalName((String) rel.get("child")));
-            allParents.add(toLocalName((String) rel.get("parent")));
+            allChildren.add(toLocalName((String) rel.get(CHILD)));
+            allParents.add(toLocalName((String) rel.get(PARENT)));
         }
         Set<String> classNames = classes.stream()
                 .map(c -> (String) c.get("name"))

@@ -3,7 +3,7 @@ package org.zhengyan.ontology.platform.service;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -157,9 +157,9 @@ public class SparqlTemplateGenerator {
 
     private static class Template {
         final Pattern pattern;
-        final Function<String, String> generator;
+        final UnaryOperator<String> generator;
 
-        Template(String regex, Function<String, String> generator) {
+        Template(String regex, UnaryOperator<String> generator) {
             this.pattern = Pattern.compile(regex, Pattern.CASE_INSENSITIVE);
             this.generator = generator;
         }

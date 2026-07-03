@@ -2,7 +2,6 @@ package org.zhengyan.ontology.platform.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.zhengyan.ontology.platform.model.Tenant;
 
@@ -15,10 +14,9 @@ public class OwlGeneratorService {
 
     private static final Logger log = LoggerFactory.getLogger(OwlGeneratorService.class);
 
-    private final String outputDir;
+    private static final String RDFS_LABEL = "    rdfs:label \"";
 
-    public OwlGeneratorService(@Value("${ontology.owl-generation.output-dir:generated-ontologies}") String outputDir) {
-        this.outputDir = outputDir;
+    public OwlGeneratorService() {
     }
 
     public String generateOwl(Tenant tenant) throws Exception {
@@ -42,7 +40,7 @@ public class OwlGeneratorService {
                 String className = toClassName(table.name);
                 sw.append("### ").append(table.name).append("\n");
                 sw.append(":").append(className).append(" rdf:type owl:Class ;\n");
-                sw.append("    rdfs:label \"").append(table.name).append("\" ;\n");
+                sw.append(RDFS_LABEL).append(table.name).append("\" ;\n");
                 if (table.comment != null) {
                     sw.append("    rdfs:comment \"").append(table.comment).append("\" ;\n");
                 }
@@ -64,13 +62,13 @@ public class OwlGeneratorService {
                         sw.append(":").append(propName).append(" rdf:type owl:ObjectProperty ;\n");
                         sw.append("    rdfs:domain :").append(toClassName(table.name)).append(" ;\n");
                         sw.append("    rdfs:range :").append(targetClass).append(" ;\n");
-                        sw.append("    rdfs:label \"").append(col.name).append("\" .\n\n");
+                        sw.append(RDFS_LABEL).append(col.name).append("\" .\n\n");
                     } else {
                         String xsdType = mapSqlTypeToXsd(col.sqlType);
                         sw.append(":").append(propName).append(" rdf:type owl:DatatypeProperty ;\n");
                         sw.append("    rdfs:domain :").append(toClassName(table.name)).append(" ;\n");
                         sw.append("    rdfs:range ").append(xsdType).append(" ;\n");
-                        sw.append("    rdfs:label \"").append(col.name).append("\" .\n\n");
+                        sw.append(RDFS_LABEL).append(col.name).append("\" .\n\n");
                     }
                 }
             }
@@ -82,13 +80,13 @@ public class OwlGeneratorService {
     private List<TableInfo> readTables(Connection conn, Tenant tenant) throws SQLException {
         List<TableInfo> tables = new ArrayList<>();
         String catalog = conn.getCatalog();
-        String schema = getSchema(conn, tenant);
+        String schema = getSchema(tenant);
 
         try (ResultSet rs = conn.getMetaData().getTables(catalog, schema, "%", new String[]{"TABLE"})) {
             while (rs.next()) {
                 TableInfo table = new TableInfo();
                 table.name = rs.getString("TABLE_NAME");
-                table.comment = getTableComment(conn, catalog, schema, table.name);
+                table.comment = getTableComment(conn, schema, table.name);
                 table.columns = readColumns(conn, catalog, schema, table.name);
                 readForeignKeys(conn, catalog, schema, table);
                 tables.add(table);
@@ -126,7 +124,7 @@ public class OwlGeneratorService {
         }
     }
 
-    private String getTableComment(Connection conn, String catalog, String schema, String tableName) {
+    private String getTableComment(Connection conn, String schema, String tableName) {
         String sql = "SELECT REMARKS FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, schema != null ? schema : "PUBLIC");
@@ -140,7 +138,7 @@ public class OwlGeneratorService {
         return null;
     }
 
-    private String getSchema(Connection conn, Tenant tenant) {
+    private String getSchema(Tenant tenant) {
         String url = tenant.getJdbcUrl().toLowerCase();
         if (url.contains("h2")) return "PUBLIC";
         if (url.contains("mysql")) return null;
@@ -166,11 +164,10 @@ public class OwlGeneratorService {
     }
 
     private String toPropertyName(String columnName, String tableName) {
-        String stripped = columnName.toLowerCase()
+        return columnName.toLowerCase()
                 .replace(tableName.toLowerCase() + "_id", tableName.toLowerCase() + "Id")
                 .replace("_id", "Id")
                 .replace("_", "");
-        return stripped;
     }
 
     private String mapSqlTypeToXsd(int sqlType) {

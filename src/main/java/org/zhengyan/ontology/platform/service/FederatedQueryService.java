@@ -1,7 +1,5 @@
 package org.zhengyan.ontology.platform.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.zhengyan.ontology.platform.engine.EngineRegistry;
 import org.zhengyan.ontology.platform.engine.OntologyEngine;
@@ -16,7 +14,6 @@ import java.util.regex.Pattern;
 @Service
 public class FederatedQueryService {
 
-    private static final Logger log = LoggerFactory.getLogger(FederatedQueryService.class);
     private static final Pattern SERVICE_PATTERN = Pattern.compile(
             "SERVICE\\s+<tenant:([^>]+)>\\s*\\{([^}]+)\\}", Pattern.CASE_INSENSITIVE);
 
@@ -68,7 +65,6 @@ public class FederatedQueryService {
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
 
-        String modifiedSparql = sparql;
         int idx = 0;
         matcher.reset();
         StringBuffer sb = new StringBuffer();
@@ -78,7 +74,7 @@ public class FederatedQueryService {
             idx++;
         }
         matcher.appendTail(sb);
-        modifiedSparql = sb.toString();
+        String modifiedSparql = sb.toString();
 
         OntologyEngine sourceEngine = engineRegistry.get(tenantId);
         return sourceEngine.executeQuery(modifiedSparql);
@@ -102,9 +98,9 @@ public class FederatedQueryService {
         for (Map<String, Object> row : result.getResults()) {
             sb.append("(");
             int vi = 0;
-            for (String var : result.getVariables()) {
+            for (String variable : result.getVariables()) {
                 if (vi > 0) sb.append(" ");
-                Object val = row.get(var);
+                Object val = row.get(variable);
                 if (val != null) {
                     sb.append("\"").append(val.toString().replace("\"", "\\\"")).append("\"");
                 } else {

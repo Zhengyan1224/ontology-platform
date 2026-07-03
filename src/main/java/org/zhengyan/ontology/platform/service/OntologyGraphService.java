@@ -14,6 +14,8 @@ import java.util.stream.Collectors;
 @Service
 public class OntologyGraphService {
 
+    private static final String LABEL = "label";
+
     private final TenantConfig tenantConfig;
     private final TenantPersistenceService tenantPersistenceService;
     private final OwlSchemaParser owlParser;
@@ -22,7 +24,6 @@ public class OntologyGraphService {
     public OntologyGraphService(TenantConfig tenantConfig,
                                 TenantPersistenceService tenantPersistenceService,
                                 OwlSchemaParser owlParser,
-                                @Value("${ontology.viz.max-edge-limit:1000}") int maxEdgeLimit,
                                 @Value("${ontology.viz.cache-ttl-seconds:300}") int cacheTtlSeconds) {
         this.tenantConfig = tenantConfig;
         this.tenantPersistenceService = tenantPersistenceService;
@@ -56,7 +57,7 @@ public class OntologyGraphService {
             if (!nodeIds.contains(name)) {
                 Map<String, Object> node = new LinkedHashMap<>();
                 node.put("id", name);
-                node.put("label", name);
+                node.put(LABEL, name);
                 node.put("type", "class");
                 nodes.add(node);
                 nodeIds.add(name);
@@ -71,7 +72,7 @@ public class OntologyGraphService {
                 if (!nodeIds.contains(name)) {
                     Map<String, Object> node = new LinkedHashMap<>();
                     node.put("id", name);
-                    node.put("label", name);
+                    node.put(LABEL, name);
                     node.put("type", "class");
                     nodes.add(node);
                     nodeIds.add(name);
@@ -81,7 +82,7 @@ public class OntologyGraphService {
             Map<String, Object> edge = new LinkedHashMap<>();
             edge.put("source", child);
             edge.put("target", parent);
-            edge.put("label", "subClassOf");
+            edge.put(LABEL, "subClassOf");
             edge.put("type", "hierarchy");
             edges.add(edge);
         }
@@ -93,7 +94,7 @@ public class OntologyGraphService {
             Map<String, Object> edge = new LinkedHashMap<>();
             edge.put("source", propName);
             edge.put("target", propType.equals("object") ? "object" : "datatype");
-            edge.put("label", propName);
+            edge.put(LABEL, propName);
             edge.put("type", "property");
             edge.put("propertyType", propType);
             edges.add(edge);

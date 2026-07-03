@@ -5,6 +5,9 @@ import org.zhengyan.ontology.platform.model.SparqlQueryResult;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class NlqResult {
     private final String question;
     private final String sparql;

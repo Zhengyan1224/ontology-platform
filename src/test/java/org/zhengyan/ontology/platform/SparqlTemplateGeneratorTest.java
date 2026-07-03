@@ -16,8 +16,14 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
+/**
+ * @author zhengyan
+ */
 @ExtendWith(MockitoExtension.class)
 public class SparqlTemplateGeneratorTest {
+
+    private static final String TENANT_UNIVERSITY = "university";
+    private static final String TENANT_SAMPLE = "sample";
 
     @Mock
     private ResourceLoader resourceLoader;
@@ -25,108 +31,92 @@ public class SparqlTemplateGeneratorTest {
     @Mock
     private Resource resource;
 
-    private TemplateLoader templateLoader;
     private SparqlTemplateGenerator generator;
 
     @BeforeEach
     void setUp() {
         given(resourceLoader.getResource(anyString())).willReturn(resource);
         given(resource.exists()).willReturn(false);
-        templateLoader = new TemplateLoader(resourceLoader);
+        TemplateLoader templateLoader = new TemplateLoader(resourceLoader);
         generator = new SparqlTemplateGenerator(templateLoader);
     }
 
     @Test
     void testHardcodedEmployees() {
-        Optional<String> result = generator.generate("university", "list all employees");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains("SELECT ?person ?name"));
-        assertTrue(result.get().contains(":Employee"));
+        Optional<String> result = generator.generate(TENANT_UNIVERSITY, "list all employees");
+        assertTrue(result.isPresent() && result.get().contains("SELECT ?person ?name") && result.get().contains(":Employee"));
     }
 
     @Test
     void testHardcodedProfessors() {
-        Optional<String> result = generator.generate("university", "list professors");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains(":Professor"));
+        Optional<String> result = generator.generate(TENANT_UNIVERSITY, "list professors");
+        assertTrue(result.isPresent() && result.get().contains(":Professor"));
     }
 
     @Test
     void testHardcodedDepartments() {
-        Optional<String> result = generator.generate("university", "List all departments");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains(":Department"));
+        Optional<String> result = generator.generate(TENANT_UNIVERSITY, "List all departments");
+        assertTrue(result.isPresent() && result.get().contains(":Department"));
     }
 
     @Test
     void testHardcodedWhoWorksFor() {
-        Optional<String> result = generator.generate("university", "Who works for Computer Science");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains(":worksFor"));
-        assertTrue(result.get().contains("Computer Science"));
+        Optional<String> result = generator.generate(TENANT_UNIVERSITY, "Who works for Computer Science");
+        assertTrue(result.isPresent() && result.get().contains(":worksFor") && result.get().contains("Computer Science"));
     }
 
     @Test
     void testHardcodedHeadOf() {
-        Optional<String> result = generator.generate("university", "head of Mathematics");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains(":headOf"));
+        Optional<String> result = generator.generate(TENANT_UNIVERSITY, "head of Mathematics");
+        assertTrue(result.isPresent() && result.get().contains(":headOf"));
     }
 
     @Test
     void testHardcodedFindNamed() {
-        Optional<String> result = generator.generate("university", "find employee named John");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains("\"John\""));
+        Optional<String> result = generator.generate(TENANT_UNIVERSITY, "find employee named John");
+        assertTrue(result.isPresent() && result.get().contains("\"John\""));
     }
 
     @Test
     void testHardcodedCount() {
-        Optional<String> result = generator.generate("university", "count all people");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains("COUNT"));
+        Optional<String> result = generator.generate(TENANT_UNIVERSITY, "count all people");
+        assertTrue(result.isPresent() && result.get().contains("COUNT"));
     }
 
     @Test
     void testHardcodedBooks() {
-        Optional<String> result = generator.generate("sample", "list all books");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains(":Book"));
+        Optional<String> result = generator.generate(TENANT_SAMPLE, "list all books");
+        assertTrue(result.isPresent() && result.get().contains(":Book"));
     }
 
     @Test
     void testHardcodedAuthors() {
-        Optional<String> result = generator.generate("sample", "list authors");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains(":Author"));
+        Optional<String> result = generator.generate(TENANT_SAMPLE, "list authors");
+        assertTrue(result.isPresent() && result.get().contains(":Author"));
     }
 
     @Test
     void testHardcodedWhoWrote() {
-        Optional<String> result = generator.generate("sample", "Who wrote Harry Potter");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains("FILTER(CONTAINS(LCASE(?title)"));
+        Optional<String> result = generator.generate(TENANT_SAMPLE, "Who wrote Harry Potter");
+        assertTrue(result.isPresent() && result.get().contains("FILTER(CONTAINS(LCASE(?title)"));
     }
 
     @Test
     void testHardcodedSearchNamed() {
-        Optional<String> result = generator.generate("sample", "find author named J.K. Rowling");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains("\"J.K. Rowling\""));
+        Optional<String> result = generator.generate(TENANT_SAMPLE, "find author named J.K. Rowling");
+        assertTrue(result.isPresent() && result.get().contains("\"J.K. Rowling\""));
     }
 
     @Test
     void testHardcodedHowMany() {
-        Optional<String> result = generator.generate("sample", "how many authors");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains("COUNT"));
+        Optional<String> result = generator.generate(TENANT_SAMPLE, "how many authors");
+        assertTrue(result.isPresent() && result.get().contains("COUNT"));
     }
 
     @Test
     void testHardcodedAuthorsFrom() {
-        Optional<String> result = generator.generate("sample", "authors from Bloomsbury");
-        assertTrue(result.isPresent());
-        assertTrue(result.get().contains(":AffiliatedWriter"));
+        Optional<String> result = generator.generate(TENANT_SAMPLE, "authors from Bloomsbury");
+        assertTrue(result.isPresent() && result.get().contains(":AffiliatedWriter"));
     }
 
     @Test
@@ -137,8 +127,8 @@ public class SparqlTemplateGeneratorTest {
 
     @Test
     void testHasTemplatesForKnown() {
-        assertTrue(generator.hasTemplatesFor("university"));
-        assertTrue(generator.hasTemplatesFor("sample"));
+        assertTrue(generator.hasTemplatesFor(TENANT_UNIVERSITY));
+        assertTrue(generator.hasTemplatesFor(TENANT_SAMPLE));
     }
 
     @Test

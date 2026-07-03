@@ -2,6 +2,9 @@ package org.zhengyan.ontology.platform.model;
 
 import jakarta.validation.constraints.NotBlank;
 
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class NlqRequest {
     @NotBlank
     private String question;

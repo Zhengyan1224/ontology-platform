@@ -3,6 +3,9 @@ package org.zhengyan.ontology.platform.service;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class NlqTemplateRule {
     private List<String> patterns;
     private String sparql;

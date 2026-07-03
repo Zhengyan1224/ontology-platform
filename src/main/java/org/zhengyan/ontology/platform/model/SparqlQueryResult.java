@@ -3,6 +3,9 @@ package org.zhengyan.ontology.platform.model;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class SparqlQueryResult {
     private List<String> variables;
     private List<Map<String, Object>> results;

@@ -6,7 +6,13 @@ import org.zhengyan.ontology.platform.service.SessionManager;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * @author zhengyan
+ */
 public class SessionManagerTest {
+
+    private static final String SESSION_ID = "session-1";
+    private static final int HISTORY_ITEM_COUNT = 10;
 
     private SessionManager sessionManager;
 
@@ -17,17 +23,17 @@ public class SessionManagerTest {
 
     @Test
     void testCreateSession() {
-        SessionManager.Session session = sessionManager.getOrCreate("session-1");
+        SessionManager.Session session = sessionManager.getOrCreate(SESSION_ID);
         assertNotNull(session);
-        assertEquals("session-1", session.getSessionId());
+        assertEquals(SESSION_ID, session.getSessionId());
     }
 
     @Test
     void testGetExistingSession() {
-        sessionManager.getOrCreate("session-1");
-        SessionManager.Session session = sessionManager.get("session-1");
+        sessionManager.getOrCreate(SESSION_ID);
+        SessionManager.Session session = sessionManager.get(SESSION_ID);
         assertNotNull(session);
-        assertEquals("session-1", session.getSessionId());
+        assertEquals(SESSION_ID, session.getSessionId());
     }
 
     @Test
@@ -44,14 +50,14 @@ public class SessionManagerTest {
 
     @Test
     void testRemoveSession() {
-        sessionManager.getOrCreate("session-1");
-        sessionManager.remove("session-1");
-        assertNull(sessionManager.get("session-1"));
+        sessionManager.getOrCreate(SESSION_ID);
+        sessionManager.remove(SESSION_ID);
+        assertNull(sessionManager.get(SESSION_ID));
     }
 
     @Test
     void testHistoryTracking() {
-        SessionManager.Session session = sessionManager.getOrCreate("session-1");
+        SessionManager.Session session = sessionManager.getOrCreate(SESSION_ID);
         session.addHistory("list all employees", "SELECT ...");
         session.addHistory("who works for CS", "SELECT ...");
         assertEquals(2, session.getHistory().size());
@@ -61,8 +67,8 @@ public class SessionManagerTest {
 
     @Test
     void testHistoryMaxSize() {
-        SessionManager.Session session = sessionManager.getOrCreate("session-1");
-        for (int i = 0; i < 10; i++) {
+        SessionManager.Session session = sessionManager.getOrCreate(SESSION_ID);
+        for (int i = 0; i < HISTORY_ITEM_COUNT; i++) {
             session.addHistory("q" + i, "sparql" + i);
         }
         assertEquals(5, session.getHistory().size());
@@ -72,11 +78,11 @@ public class SessionManagerTest {
     @Test
     void testCleanupExpired() throws Exception {
         SessionManager shortTtl = new SessionManager(10, 100);
-        shortTtl.getOrCreate("session-1");
+        shortTtl.getOrCreate(SESSION_ID);
         shortTtl.getOrCreate("session-2");
         Thread.sleep(30);
         shortTtl.cleanupExpired();
-        assertNull(shortTtl.get("session-1"));
+        assertNull(shortTtl.get(SESSION_ID));
         assertNull(shortTtl.get("session-2"));
     }
 
@@ -89,14 +95,14 @@ public class SessionManagerTest {
         small.getOrCreate("s4");
         int active = 0;
         for (String id : new String[]{"s1", "s2", "s3", "s4"}) {
-            if (small.get(id) != null) active++;
+            if (small.get(id) != null) { active++; }
         }
         assertEquals(3, active);
     }
 
     @Test
     void testSessionCreatedAt() {
-        SessionManager.Session session = sessionManager.getOrCreate("session-1");
+        SessionManager.Session session = sessionManager.getOrCreate(SESSION_ID);
         assertTrue(session.getCreatedAt() > 0);
     }
 }

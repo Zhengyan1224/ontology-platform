@@ -2,6 +2,9 @@ package org.zhengyan.ontology.platform.model;
 
 import java.time.LocalDateTime;
 
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class ApiKeyEntity {
     private Long id;
     private String keyHash;

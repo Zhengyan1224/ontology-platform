@@ -95,7 +95,7 @@ public class SparqlController {
                 try {
                     resultFormatter.writeTupleResult(format, result, out);
                 } catch (Exception e) {
-                    throw new RuntimeException("Failed to write tuple result", e);
+                    throw new OntologyPlatformException("Failed to write tuple result", 500, "WRITE_ERROR", e);
                 }
             };
         } catch (Exception e) {

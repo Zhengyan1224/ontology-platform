@@ -31,6 +31,13 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/v1")
 public class AdminController {
 
+    private static final String KEY_ERROR = "error";
+    private static final String KEY_MESSAGE = "message";
+    private static final String KEY_STATUS = "status";
+    private static final String KEY_TENANT_ID = "tenantId";
+    private static final String TENANT_NOT_FOUND = "TENANT_NOT_FOUND";
+    private static final String TENANT_NOT_FOUND_PREFIX = "Tenant not found: ";
+
     private final TenantConfig tenantConfig;
     private final EngineRegistry engineRegistry;
     private final OntologySchemaProvider schemaProvider;
@@ -38,12 +45,12 @@ public class AdminController {
     private final ApiKeyService apiKeyService;
     private final AuditService auditService;
     private final CachedSparqlService cachedSparqlService;
-    private final MetricsService metricsService;
     private final OwlGeneratorService owlGeneratorService;
     private final OntologyGraphService ontologyGraphService;
     private final TenantPersistenceService tenantPersistenceService;
     private final TenantConfigValidator tenantConfigValidator;
 
+    @SuppressWarnings("java:S107")
     public AdminController(TenantConfig tenantConfig,
                            EngineRegistry engineRegistry,
                            OntologySchemaProvider schemaProvider,
@@ -51,7 +58,6 @@ public class AdminController {
                            ApiKeyService apiKeyService,
                            AuditService auditService,
                            CachedSparqlService cachedSparqlService,
-                           MetricsService metricsService,
                            OntologyGraphService ontologyGraphService,
                            OwlGeneratorService owlGeneratorService,
                            TenantPersistenceService tenantPersistenceService,
@@ -63,7 +69,6 @@ public class AdminController {
         this.apiKeyService = apiKeyService;
         this.auditService = auditService;
         this.cachedSparqlService = cachedSparqlService;
-        this.metricsService = metricsService;
         this.ontologyGraphService = ontologyGraphService;
         this.owlGeneratorService = owlGeneratorService;
         this.tenantPersistenceService = tenantPersistenceService;
@@ -90,8 +95,8 @@ public class AdminController {
     public ResponseEntity<?> createTenant(@Valid @RequestBody CreateTenantRequest request) {
         if (engineRegistry.contains(request.getId())) {
             Map<String, String> err = new LinkedHashMap<>();
-            err.put("error", "TENANT_ALREADY_EXISTS");
-            err.put("message", "Tenant already exists: " + request.getId());
+            err.put(KEY_ERROR, "TENANT_ALREADY_EXISTS");
+            err.put(KEY_MESSAGE, "Tenant already exists: " + request.getId());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(err);
         }
 
@@ -108,8 +113,8 @@ public class AdminController {
         Map<String, String> validationErrors = tenantConfigValidator.validate(tenant);
         if (!validationErrors.isEmpty()) {
             Map<String, Object> err = new LinkedHashMap<>();
-            err.put("error", "VALIDATION_ERROR");
-            err.put("message", "Tenant configuration is invalid");
+            err.put(KEY_ERROR, "VALIDATION_ERROR");
+            err.put(KEY_MESSAGE, "Tenant configuration is invalid");
             err.put("details", validationErrors);
             return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(err);
         }
@@ -120,7 +125,7 @@ public class AdminController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", tenant.getId());
         result.put("name", tenant.getName());
-        result.put("status", "created");
+        result.put(KEY_STATUS, "created");
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
@@ -131,8 +136,8 @@ public class AdminController {
         Tenant existing = findTenant(tenantId);
         if (existing == null) {
             Map<String, String> err = new LinkedHashMap<>();
-            err.put("error", "TENANT_NOT_FOUND");
-            err.put("message", "Tenant not found: " + tenantId);
+            err.put(KEY_ERROR, TENANT_NOT_FOUND);
+            err.put(KEY_MESSAGE, TENANT_NOT_FOUND_PREFIX + tenantId);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err);
         }
 
@@ -147,8 +152,8 @@ public class AdminController {
         Map<String, String> validationErrors = tenantConfigValidator.validate(existing);
         if (!validationErrors.isEmpty()) {
             Map<String, Object> err = new LinkedHashMap<>();
-            err.put("error", "VALIDATION_ERROR");
-            err.put("message", "Tenant configuration is invalid");
+            err.put(KEY_ERROR, "VALIDATION_ERROR");
+            err.put(KEY_MESSAGE, "Tenant configuration is invalid");
             err.put("details", validationErrors);
             return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(err);
         }
@@ -160,7 +165,7 @@ public class AdminController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", existing.getId());
         result.put("name", existing.getName());
-        result.put("status", "updated");
+        result.put(KEY_STATUS, "updated");
         return ResponseEntity.ok(result);
     }
 
@@ -170,8 +175,8 @@ public class AdminController {
         Tenant existing = findTenant(tenantId);
         if (existing == null) {
             Map<String, String> err = new LinkedHashMap<>();
-            err.put("error", "TENANT_NOT_FOUND");
-            err.put("message", "Tenant not found: " + tenantId);
+            err.put(KEY_ERROR, TENANT_NOT_FOUND);
+            err.put(KEY_MESSAGE, TENANT_NOT_FOUND_PREFIX + tenantId);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err);
         }
 
@@ -187,7 +192,7 @@ public class AdminController {
             Map<String, Object> result = ontologyGraphService.getGraph(tenantId);
             return ResponseEntity.ok(result);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "TENANT_NOT_FOUND"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(KEY_ERROR, TENANT_NOT_FOUND));
         }
     }
 
@@ -196,15 +201,15 @@ public class AdminController {
         Tenant tenant = findTenant(tenantId);
         if (tenant == null) {
             Map<String, String> err = new LinkedHashMap<>();
-            err.put("error", "TENANT_NOT_FOUND");
-            err.put("message", "Tenant not found: " + tenantId);
+            err.put(KEY_ERROR, TENANT_NOT_FOUND);
+            err.put(KEY_MESSAGE, TENANT_NOT_FOUND_PREFIX + tenantId);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Collections.unmodifiableMap(err));
         }
 
         dynamicSchemaProvider.loadFromPaths(tenant.resolveOwlPath(), tenant.resolveObdaPath());
 
         Map<String, Object> result = new LinkedHashMap<>(dynamicSchemaProvider.getAll());
-        result.put("tenantId", tenantId);
+        result.put(KEY_TENANT_ID, tenantId);
         result.put("description", schemaProvider.getSchemaForTenant(tenantId));
         return ResponseEntity.ok(result);
     }
@@ -214,18 +219,18 @@ public class AdminController {
     public ResponseEntity<?> generateOwl(@PathVariable String tenantId) {
         Tenant tenant = findTenant(tenantId);
         if (tenant == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "TENANT_NOT_FOUND"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(KEY_ERROR, TENANT_NOT_FOUND));
         }
         try {
             String owl = owlGeneratorService.generateOwl(tenant);
             Map<String, Object> result = new LinkedHashMap<>();
-            result.put("tenantId", tenantId);
+            result.put(KEY_TENANT_ID, tenantId);
             result.put("owl", owl);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             Map<String, Object> err = new LinkedHashMap<>();
-            err.put("error", "OWL_GENERATION_FAILED");
-            err.put("message", e.getMessage());
+            err.put(KEY_ERROR, "OWL_GENERATION_FAILED");
+            err.put(KEY_MESSAGE, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
         }
     }
@@ -236,8 +241,8 @@ public class AdminController {
         engineRegistry.reinitialize(tenantId);
         cachedSparqlService.evictForTenant(tenantId);
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("tenantId", tenantId);
-        result.put("status", "reinitialized");
+        result.put(KEY_TENANT_ID, tenantId);
+        result.put(KEY_STATUS, "reinitialized");
         return ResponseEntity.ok(result);
     }
 
@@ -256,7 +261,7 @@ public class AdminController {
     public ResponseEntity<Map<String, Object>> clearAuditLog() {
         auditService.clearLogs();
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("status", "cleared");
+        result.put(KEY_STATUS, "cleared");
         return ResponseEntity.ok(result);
     }
 
@@ -265,14 +270,14 @@ public class AdminController {
     public ResponseEntity<Map<String, Object>> clearCache() {
         cachedSparqlService.evictAll();
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("status", "cache_cleared");
+        result.put(KEY_STATUS, "cache_cleared");
         return ResponseEntity.ok(result);
     }
 
     private Map<String, Object> logToMap(QueryAuditLog log) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", log.getId());
-        m.put("tenantId", log.getTenantId());
+        m.put(KEY_TENANT_ID, log.getTenantId());
         m.put("queryType", log.getQueryType());
         m.put("queryText", log.getQueryText());
         m.put("generatedSparql", log.getGeneratedSparql());
@@ -313,7 +318,7 @@ public class AdminController {
         result.put("key", rawKey);
         result.put("name", request.getName());
         result.put("role", request.getRole());
-        result.put("message", "Save this key — it will not be shown again");
+        result.put(KEY_MESSAGE, "Save this key — it will not be shown again");
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
@@ -325,7 +330,7 @@ public class AdminController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", id);
         result.put("enabled", enabled);
-        result.put("status", updated ? "updated" : "not_found");
+        result.put(KEY_STATUS, updated ? "updated" : "not_found");
         return updated ? ResponseEntity.ok(result)
                 : ResponseEntity.status(HttpStatus.NOT_FOUND).body(result);
     }
@@ -337,7 +342,7 @@ public class AdminController {
         apiKeyService.invalidateCache();
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", id);
-        result.put("status", toggled ? "revoked" : "not_found");
+        result.put(KEY_STATUS, toggled ? "revoked" : "not_found");
         return toggled ? ResponseEntity.ok(result)
                 : ResponseEntity.status(HttpStatus.NOT_FOUND).body(result);
     }

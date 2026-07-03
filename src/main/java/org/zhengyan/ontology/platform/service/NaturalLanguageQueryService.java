@@ -28,6 +28,9 @@ import java.util.concurrent.Executors;
 public class NaturalLanguageQueryService {
 
     private static final Logger log = LoggerFactory.getLogger(NaturalLanguageQueryService.class);
+    private static final String EVENT_STATUS = "status";
+    private static final String KEY_STAGE = "stage";
+    private static final String KEY_SPARQL = "sparql";
     private static final String DEFAULT_PROMPT = """
             You are a SPARQL query generator for an OBDA system.
             Ontology schema for tenant "%s":
@@ -48,6 +51,7 @@ public class NaturalLanguageQueryService {
     private final ChatLanguageModel llm;
     private final boolean llmAvailable;
 
+    @SuppressWarnings("java:S107")
     public NaturalLanguageQueryService(
             EngineRegistry engineRegistry,
             SparqlTemplateGenerator templateGenerator,
@@ -109,7 +113,7 @@ public class NaturalLanguageQueryService {
 
         CompletableFuture.runAsync(() -> {
             try {
-                emitter.send(SseEmitter.event().name("status").data(Map.of("stage", "translating")));
+                emitter.send(SseEmitter.event().name(EVENT_STATUS).data(Map.of(KEY_STAGE, "translating")));
 
                 long start = System.currentTimeMillis();
                 OntologyEngine engine = engineRegistry.get(tenantId);
@@ -127,17 +131,16 @@ public class NaturalLanguageQueryService {
                     session.addHistory(question, sparql);
                 }
 
-                emitter.send(SseEmitter.event().name("sparql").data(Map.of("sparql", sparql)));
+                emitter.send(SseEmitter.event().name(KEY_SPARQL).data(Map.of(KEY_SPARQL, sparql)));
 
-                emitter.send(SseEmitter.event().name("status").data(Map.of("stage", "executing")));
+                emitter.send(SseEmitter.event().name(EVENT_STATUS).data(Map.of(KEY_STAGE, "executing")));
 
                 SparqlQueryResult queryResult = engine.executeQuery(sparql);
-                long elapsed = System.currentTimeMillis() - start;
 
                 emitter.send(SseEmitter.event().name("result").data(NlqResult.fromSparqlResult(
                         question, sparql, queryResult, mode)));
 
-                emitter.send(SseEmitter.event().name("status").data(Map.of("stage", "formatting")));
+                emitter.send(SseEmitter.event().name(EVENT_STATUS).data(Map.of(KEY_STAGE, "formatting")));
 
                 emitter.send(SseEmitter.event().name("complete").data(Map.of()));
 
@@ -183,13 +186,12 @@ public class NaturalLanguageQueryService {
         String template = loadPromptTemplate();
         String examples = loadFewShotExamples(tenantId);
         String history = buildConversationHistory(session);
-        String prompt = template
+        return template
                 .replace("{{tenantId}}", tenantId)
                 .replace("{{schema}}", schema)
                 .replace("{{question}}", question)
                 .replace("{{examples}}", examples)
                 .replace("{{history}}", history);
-        return prompt;
     }
 
     private String buildConversationHistory(SessionManager.Session session) {

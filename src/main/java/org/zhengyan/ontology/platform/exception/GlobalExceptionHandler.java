@@ -12,39 +12,43 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final String KEY_ERROR = "error";
+    private static final String KEY_STATUS = "status";
+    private static final String KEY_MESSAGE = "message";
+
     @ExceptionHandler(OntologyPlatformException.class)
     public ResponseEntity<Map<String, Object>> handlePlatformException(OntologyPlatformException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", ex.getErrorCode());
-        body.put("message", ex.getMessage());
-        body.put("status", ex.getHttpStatus());
+        body.put(KEY_ERROR, ex.getErrorCode());
+        body.put(KEY_MESSAGE, ex.getMessage());
+        body.put(KEY_STATUS, ex.getHttpStatus());
         return ResponseEntity.status(ex.getHttpStatus()).body(body);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", "BAD_REQUEST");
-        body.put("message", ex.getMessage());
-        body.put("status", 400);
+        body.put(KEY_ERROR, "BAD_REQUEST");
+        body.put(KEY_MESSAGE, ex.getMessage());
+        body.put(KEY_STATUS, 400);
         return ResponseEntity.badRequest().body(body);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", "FORBIDDEN");
-        body.put("message", "Insufficient permissions");
-        body.put("status", 403);
+        body.put(KEY_ERROR, "FORBIDDEN");
+        body.put(KEY_MESSAGE, "Insufficient permissions");
+        body.put(KEY_STATUS, 403);
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("error", "INTERNAL_ERROR");
-        body.put("message", ex.getMessage());
-        body.put("status", 500);
+        body.put(KEY_ERROR, "INTERNAL_ERROR");
+        body.put(KEY_MESSAGE, ex.getMessage());
+        body.put(KEY_STATUS, 500);
         return ResponseEntity.internalServerError().body(body);
     }
 }

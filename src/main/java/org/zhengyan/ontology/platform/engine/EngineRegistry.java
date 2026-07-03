@@ -1,5 +1,6 @@
 package org.zhengyan.ontology.platform.engine;
 
+import org.zhengyan.ontology.platform.exception.OntologyPlatformException;
 import org.zhengyan.ontology.platform.model.Tenant;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -28,7 +29,7 @@ public class EngineRegistry {
                 return engine;
             } catch (Exception e) {
                 log.error("Failed to initialize engine for tenant: {}", id, e);
-                throw new RuntimeException("Engine initialization failed for tenant: " + id, e);
+                throw new OntologyPlatformException("Engine initialization failed for tenant: " + id, 500, "ENGINE_INIT_FAILED", e);
             }
         });
     }

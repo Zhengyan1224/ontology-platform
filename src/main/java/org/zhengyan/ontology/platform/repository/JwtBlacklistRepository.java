@@ -10,6 +10,9 @@ import java.sql.Timestamp;
 import java.time.LocalDateTime;
 
 @Repository
+/**
+ * @author 郑炎 Zheng Yan
+ */
 public class JwtBlacklistRepository {
 
     private static final Logger log = LoggerFactory.getLogger(JwtBlacklistRepository.class);

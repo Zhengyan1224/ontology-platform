@@ -1,6 +1,6 @@
 ## 1. Auth Hardening
 
-- [ ] 1.1 Replace `ConcurrentHashMap` cache in `ApiKeyService` with Caffeine cache (configurable TTL + max size)
+- [x] 1.1 Replace `ConcurrentHashMap` cache in `ApiKeyService` with Caffeine cache (configurable TTL + max size)
 - [x] 1.2 Add Caffeine dependency to `pom.xml`
 - [x] 1.3 Create `jwt_blacklist` DDL (`init-jwt-blacklist.sql`) and register in schema-locations
 - [x] 1.4 Create `JwtBlacklistRepository` + scheduled cleanup task

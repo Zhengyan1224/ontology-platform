@@ -12,6 +12,10 @@ import java.util.concurrent.atomic.AtomicLong;
 @Service
 public class MetricsService {
 
+    private static final String TAG_FAILURE = "failure";
+    private static final String TAG_TENANT = "tenant";
+    private static final String TAG_SUCCESS = "success";
+
     private final MeterRegistry meterRegistry;
     private final ConcurrentHashMap<String, Counter> queryCounters = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Timer> queryTimers = new ConcurrentHashMap<>();
@@ -23,17 +27,17 @@ public class MetricsService {
     }
 
     public void recordQuery(String tenantId, long durationMs, boolean success) {
-        String counterName = "ontology.queries." + (success ? "success" : "failure");
+        String counterName = "ontology.queries." + (success ? TAG_SUCCESS : TAG_FAILURE);
         Counter counter = queryCounters.computeIfAbsent(counterName + "." + tenantId,
                 k -> Counter.builder(counterName)
-                        .tag("tenant", tenantId)
-                        .tag("status", success ? "success" : "failure")
+                        .tag(TAG_TENANT, tenantId)
+                        .tag("status", success ? TAG_SUCCESS : TAG_FAILURE)
                         .register(meterRegistry));
         counter.increment();
 
         Timer timer = queryTimers.computeIfAbsent("ontology.query.duration." + tenantId,
                 k -> Timer.builder("ontology.query.duration")
-                        .tag("tenant", tenantId)
+                        .tag(TAG_TENANT, tenantId)
                         .publishPercentiles(0.5, 0.95, 0.99)
                         .register(meterRegistry));
         timer.record(durationMs, TimeUnit.MILLISECONDS);
@@ -41,9 +45,9 @@ public class MetricsService {
 
     public void recordNlq(String tenantId, long durationMs, boolean success, String mode) {
         Counter counter = Counter.builder("ontology.nlq.queries")
-                .tag("tenant", tenantId)
+                .tag(TAG_TENANT, tenantId)
                 .tag("mode", mode)
-                .tag("status", success ? "success" : "failure")
+                .tag("status", success ? TAG_SUCCESS : TAG_FAILURE)
                 .register(meterRegistry);
         counter.increment();
 
@@ -56,7 +60,7 @@ public class MetricsService {
 
     public void recordNlqQuery(String tenantId) {
         Counter.builder("ontology.nlq.queries")
-                .tag("tenant", tenantId)
+                .tag(TAG_TENANT, tenantId)
                 .register(meterRegistry)
                 .increment();
     }
