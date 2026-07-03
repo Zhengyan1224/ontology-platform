@@ -20,6 +20,7 @@ import org.zhengyan.ontology.platform.service.MetricsService;
 import org.zhengyan.ontology.platform.service.SparqlResultFormat;
 import org.zhengyan.ontology.platform.service.SparqlResultFormatter;
 
+import io.micrometer.observation.annotation.Observed;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -43,6 +44,7 @@ public class SparqlController {
         this.cachedSparqlService = cachedSparqlService;
     }
 
+    @Observed(name = "sparql.execute")
     @PostMapping(value = "/tenants/{tenantId}/sparql",
             consumes = MediaType.APPLICATION_JSON_VALUE)
     public Object executeSparql(
@@ -53,6 +55,7 @@ public class SparqlController {
         return doExecute(tenantId, request.getQuery(), acceptHeader, response);
     }
 
+    @Observed(name = "sparql.execute.direct")
     @PostMapping(value = "/tenants/{tenantId}/sparql",
             consumes = "application/sparql-query",
             produces = MediaType.APPLICATION_JSON_VALUE)
@@ -151,6 +154,7 @@ public class SparqlController {
         }
     }
 
+    @Observed(name = "sparql.explain")
     @PostMapping("/tenants/{tenantId}/sparql/explain")
     public ResponseEntity<Map<String, Object>> explain(
             @PathVariable String tenantId,

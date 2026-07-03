@@ -17,6 +17,7 @@ import org.zhengyan.ontology.platform.engine.EngineRegistry;
 import org.zhengyan.ontology.platform.engine.OntologyEngine;
 import org.zhengyan.ontology.platform.model.SparqlQueryResult;
 
+import io.micrometer.observation.annotation.Observed;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.List;
@@ -86,6 +87,7 @@ public class NaturalLanguageQueryService {
         }
     }
 
+    @Observed(name = "nlq.answer")
     public NlqResult answer(String tenantId, String question) throws Exception {
         return answer(tenantId, question, null);
     }
@@ -108,6 +110,7 @@ public class NaturalLanguageQueryService {
         return NlqResult.fromSparqlResult(question, sparql, queryResult, mode);
     }
 
+    @Observed(name = "nlq.stream")
     public void streamAnswer(String tenantId, String question, String sessionId, SseEmitter emitter) {
         SessionManager.Session session = sessionManager.getOrCreate(sessionId);
 

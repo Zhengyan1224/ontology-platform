@@ -8,6 +8,7 @@ import org.zhengyan.ontology.platform.engine.EngineRegistry;
 import org.zhengyan.ontology.platform.engine.OntologyEngine;
 import org.zhengyan.ontology.platform.model.SparqlQueryResult;
 
+import io.micrometer.observation.annotation.Observed;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Matcher;
@@ -41,6 +42,7 @@ public class FederatedQueryService {
         this.metricsService = metricsService;
     }
 
+    @Observed(name = "federated.execute")
     public SparqlQueryResult executeFederated(String tenantId, String sparql) throws Exception {
         if (!containsServiceClause(sparql)) {
             OntologyEngine engine = engineRegistry.get(tenantId);

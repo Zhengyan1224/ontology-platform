@@ -8,6 +8,10 @@ mvn exec:java                    # alternative (exec-maven-plugin)
 mvn test                         # all tests (4 classes, H2 in-memory, no deps)
 ```
 
+**OTel Agent (optional):** For auto-instrumentation of HTTP, JDBC, and thread pool spans,
+add `-javaagent:path/to/opentelemetry-javaagent.jar` to JVM args.
+Custom business spans via `@Observed` (SPARQL, NLQ, federated queries) work without the Agent.
+
 - Java 21 required
 - Default H2 in-memory DB — data lost on restart. SQL init: `src/main/resources/db/init-{books,university}.sql`
 - Swagger UI: `http://localhost:8080/swagger-ui.html`

@@ -36,7 +36,8 @@ public class SecurityConfig {
                 "/api/v1/auth/",
                 "/swagger-ui/",
                 "/v3/api-docs/",
-                "/h2-console/"
+                "/h2-console/",
+                "/ontology-viz/"
         ));
     }
 
@@ -69,7 +70,8 @@ public class SecurityConfig {
                     "/api/v1/auth/**",
                     "/swagger-ui/**",
                     "/v3/api-docs/**",
-                    "/h2-console/**"
+                    "/h2-console/**",
+                    "/ontology-viz/**"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

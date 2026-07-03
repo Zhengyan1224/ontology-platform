@@ -1,5 +1,6 @@
 package org.zhengyan.ontology.platform.service;
 
+import io.micrometer.observation.annotation.Observed;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ public class CachedSparqlService {
         this.federatedQueryService = federatedQueryService;
     }
 
+    @Observed(name = "sparql.cached.execute")
     @Cacheable(value = "sparqlResults", key = "#tenantId + ':' + #sparql", unless = "#result == null")
     public SparqlQueryResult executeQuery(String tenantId, String sparql) throws Exception {
         if (federatedQueryService.containsServiceClause(sparql)) {

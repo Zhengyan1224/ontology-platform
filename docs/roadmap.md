@@ -130,8 +130,16 @@
 - [x] **5.1 缓存 Micrometer 指标** (Phase 3.2.5 延续) — ✅ 已完成（hit.count / miss.count / eviction.count / average.load.penalty）
 - [x] **5.2 联邦查询 RBAC + 超时/并发限制** (Phase 3.4 延续) — ✅ 已完成（`TenantAccessEvaluator` + `perSubqueryTimeoutMs` + 指标）
 - [x] **5.3 OWL 生成命名约定配置** (Phase 3.3 延续) — ✅ 已完成（singularize 修复、`outputDir`/`enabled` 属性、PK `FunctionalProperty`）
-- [ ] **5.4 前端本体可视化仪表盘** (基于 Phase 3.6 graph 端点)
-- [ ] **5.5 OpenTelemetry 分布式追踪**
+- [x] **5.4 前端本体可视化仪表盘** (基于 Phase 3.6 graph 端点)
+  - ✅ 静态 HTML 页面：vis-network CDN、租户选择器、节点搜索
+  - ✅ `/ontology-viz/**` 匿名访问白名单
+  - ⏳ 手动验证页面渲染和交互 (4 项)
+- [x] **5.5 OpenTelemetry 分布式追踪**
+  - ✅ 依赖：`micrometer-tracing-bridge-otel`、`opentelemetry-exporter-otlp`、`spring-boot-starter-aop`
+  - ✅ 配置：`management.tracing.sampling.probability` + OTLP endpoint
+  - ✅ `@Observed` 注解：`SparqlController`、`NaturalLanguageQueryService`、`FederatedQueryService`、`CachedSparqlService`
+  - ✅ `TracingConfig`：`ObservedAspect` 注册，149 测试通过
+  - ⏳ 手动验证 OTel Agent + 端点 (1 项)
 
 ---
 
@@ -148,3 +156,4 @@
 | 2026-07-03 | Phase 2 产品化完善归档 | SPARQL 格式协商、NLQ YAML 模板、LLM prompt 优化、流式+多轮对话、API Key DB 持久化、交叉测试全部完成。归档为 `phase2-productization`。 |
 | 2026-07-03 | Phase 5.2 联邦查询 RBAC 强化 | `TenantAccessEvaluator` + 按租户 API 作用域 + per-sub-query 超时 + 联邦查询指标 + 12 个新测试。归档为 `federated-query-rbac`。共 115 个测试通过。 |
 | 2026-07-03 | Polish & Tests 收尾 | 缓存指标 (5.1)、OWL 命名 (3.3/5.3)、34 个新测试：`RateLimitFilterTest`(4)、`JwtBlacklistRepositoryTest`(8)、`ApiKeyServiceTest`(10)、`JwtAuthFilterTest`(6)、+OwlGeneratorServiceTest 扩展(5)、+QueryCacheTest 扩展(1)。修复 `ApiKeyService.validateKey` 过期 key 返回 bug。共 **149 个测试，0 失败**。 |
+| 2026-07-03 | Phase 5.4 本体可视化仪表盘 + Phase 5.5 OTel 追踪 (代码完成) | 前端页面 `ontology-viz/index.html` + vis-network CDN + 安全白名单 (2/6 代码)。OTel 追踪：`pom.xml` 依赖、`application.yml` 配置、`@Observed` 注解覆盖 SPARQL/NLQ/联邦查询、`TracingConfig` + `ObservedAspect` 注册 (8/9 代码)。149 测试全部通过。待手动验证仪表盘渲染和 OTel 端点。 |

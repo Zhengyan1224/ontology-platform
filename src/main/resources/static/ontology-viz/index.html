@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ontology Visualization</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: #1a1a2e; color: #eee; flex-shrink: 0; }
+header h1 { font-size: 18px; }
+header label { font-size: 14px; color: #aaa; }
+header select, header input { padding: 6px 10px; border: 1px solid #444; border-radius: 4px; background: #16213e; color: #eee; font-size: 14px; }
+header input { flex: 1; max-width: 300px; }
+header select { min-width: 140px; }
+#graph-container { flex: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ontology Graph</h1>
+  <label for="tenant-select">Tenant:</label>
+  <select id="tenant-select"></select>
+  <label for="search-input">Search:</label>
+  <input id="search-input" type="text" placeholder="Filter nodes...">
+</header>
+<div id="graph-container"></div>
+
+<script>
+const API_BASE = '/api/v1';
+let network = null;
+let nodesDataSet = null;
+let edgesDataSet = null;
+let allNodeIds = [];
+
+async function fetchJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(res.statusText);
+  return res.json();
+}
+
+async function loadTenants() {
+  const tenants = await fetchJSON(API_BASE + '/tenants');
+  const select = document.getElementById('tenant-select');
+  select.innerHTML = '';
+  tenants.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.name || t.id;
+    select.appendChild(opt);
+  });
+  if (tenants.length > 0) {
+    select.value = tenants[0].id;
+    loadGraph(tenants[0].id);
+  }
+}
+
+async function loadGraph(tenantId) {
+  try {
+    const data = await fetchJSON(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/graph');
+    renderGraph(data);
+  } catch (e) {
+    document.getElementById('graph-container').innerHTML =
+      '<p style="padding:40px;color:#999;">Failed to load graph: ' + e.message + '</p>';
+  }
+}
+
+function renderGraph(data) {
+  const nodes = (data.nodes || []).map(n => ({
+    id: n.id,
+    label: n.name || n.id,
+    title: (n.type || '') + ': ' + (n.name || n.id),
+    group: n.type === 'class' ? 'class' : 'property',
+    shape: n.type === 'class' ? 'ellipse' : 'box',
+    color: n.type === 'class' ? { background: '#e3f2fd', border: '#1976d2' }
+                                : { background: '#fce4ec', border: '#c62828' }
+  }));
+
+  const edges = (data.edges || []).map(e => ({
+    from: e.source,
+    to: e.target,
+    label: e.label || '',
+    arrows: 'to',
+    font: { size: 11, color: '#666' },
+    color: { color: '#999', highlight: '#333' }
+  }));
+
+  allNodeIds = nodes.map(n => n.id);
+
+  nodesDataSet = new vis.DataSet(nodes);
+  edgesDataSet = new vis.DataSet(edges);
+
+  const container = document.getElementById('graph-container');
+  const options = {
+    physics: { solver: 'forceAtlas2Based', stabilization: { iterations: 100 } },
+    interaction: { hover: true, tooltipDelay: 200 },
+    layout: { improvedLayout: true },
+    edges: { smooth: { type: 'continuous' } }
+  };
+
+  if (network) network.destroy();
+  network = new vis.Network(container, { nodes: nodesDataSet, edges: edgesDataSet }, options);
+}
+
+function applySearch(query) {
+  if (!nodesDataSet) return;
+  const q = query.toLowerCase().trim();
+  if (!q) {
+    nodesDataSet.forEach(n => nodesDataSet.update({ id: n.id, opacity: 1.0 }));
+    return;
+  }
+  nodesDataSet.forEach(n => {
+    const match = (n.label || '').toLowerCase().includes(q);
+    nodesDataSet.update({ id: n.id, opacity: match ? 1.0 : 0.15 });
+  });
+}
+
+document.getElementById('tenant-select').addEventListener('change', e => {
+  loadGraph(e.target.value);
+});
+
+document.getElementById('search-input').addEventListener('input', e => {
+  applySearch(e.target.value);
+});
+
+loadTenants();
+</script>
+</body>
+</html>

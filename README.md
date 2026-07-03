@@ -651,6 +651,8 @@ ontology:
 | Phase 4 — 代码合规修复 | ✅ 100% (180 项问题) | — |
 | Phase 5 — 联邦查询 RBAC 强化 | ✅ 100% (39/39 任务) | +12 |
 | Polish & Tests — 缓存指标 + OWL 命名 + 缺失测试 | ✅ 100% (12/12 任务) | +34 |
+| 本体可视化仪表盘 — 前端 vis-network 页面 + 安全白名单 | ✅ 代码完成 (2/6，待手动验证) | — |
+| OpenTelemetry 分布式追踪 — 依赖 + 配置 + @Observed 注解 | ✅ 代码完成 (8/9，待验证 OTel 端点) | — |
 | **合计** | | **149 测试，0 失败** |
 
 ### Phase 3/5 完成详情
@@ -662,7 +664,9 @@ ontology:
 | OWL 生成 | ✅ 4/4 + 5.3 命名约定 | singularize 修复、`outputDir`/`enabled`、PK `FunctionalProperty` |
 | 联邦查询 RBAC | ✅ 已归档 | TenantAccessEvaluator + per-sub-query 超时 + 指标 |
 | GraphQL | ✅ 5/5 | — |
-| 本体可视化 | ✅ 3/3 | — |
+| 本体可视化图数据 API | ✅ 3/3 | `OntologyGraphService` + `GET /graph` 端点 + Caffeine 缓存 |
+| 本体可视化仪表盘 | ✅ 代码完成 (2/6) | 静态 HTML + vis-network CDN，/ontology-viz/ 白名单，待手动验证 |
+| OpenTelemetry 追踪 | ✅ 代码完成 (8/9) | spring-boot-starter-aop、micrometer-tracing-bridge-otel、`@Observed` 在 SPARQL/NLQ/联邦查询，待验证 OTel 端点 |
 
 ### 开发路线图
 
