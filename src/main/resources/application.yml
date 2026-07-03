@@ -55,8 +55,15 @@ ontology:
     capacity: 20
     refill-tokens: 10
     refill-period-seconds: 60
+  federated-query:
+    timeout-ms: 30000
+    max-concurrency: 4
   owl-generation:
+    enabled: true
     output-dir: generated-ontologies
+    name-case: PascalCase
+    table-to-class-prefix: ""
+    column-to-property-prefix: ""
   viz:
     max-edge-limit: 1000
     cache-ttl-seconds: 300

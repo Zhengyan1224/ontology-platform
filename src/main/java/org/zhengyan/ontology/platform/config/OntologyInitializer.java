@@ -2,6 +2,7 @@ package org.zhengyan.ontology.platform.config;
 
 import org.zhengyan.ontology.platform.engine.EngineRegistry;
 import org.zhengyan.ontology.platform.model.Tenant;
+import org.zhengyan.ontology.platform.service.TemplateLoader;
 import org.zhengyan.ontology.platform.service.TenantPersistenceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,13 +18,16 @@ public class OntologyInitializer {
     private final TenantConfig tenantConfig;
     private final EngineRegistry engineRegistry;
     private final TenantPersistenceService tenantPersistenceService;
+    private final TemplateLoader templateLoader;
 
     public OntologyInitializer(TenantConfig tenantConfig,
                                EngineRegistry engineRegistry,
-                               TenantPersistenceService tenantPersistenceService) {
+                               TenantPersistenceService tenantPersistenceService,
+                               TemplateLoader templateLoader) {
         this.tenantConfig = tenantConfig;
         this.engineRegistry = engineRegistry;
         this.tenantPersistenceService = tenantPersistenceService;
+        this.templateLoader = templateLoader;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -33,12 +37,14 @@ public class OntologyInitializer {
         for (Tenant tenant : tenantConfig.getTenants()) {
             anyConfigured = true;
             initializeTenant(tenant);
+            templateLoader.load(tenant.getId());
         }
 
         for (Tenant tenant : tenantPersistenceService.findAll()) {
             if (!engineRegistry.contains(tenant.getId())) {
                 anyConfigured = true;
                 initializeTenant(tenant);
+                templateLoader.load(tenant.getId());
             }
         }
 

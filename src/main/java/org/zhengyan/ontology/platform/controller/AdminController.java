@@ -300,6 +300,7 @@ public class AdminController {
             m.put("name", k.getName());
             m.put("role", k.getRole());
             m.put("enabled", k.isEnabled());
+            m.put("tenantScopes", k.getTenantScopes());
             m.put("createdAt", k.getCreatedAt());
             m.put("lastUsedAt", k.getLastUsedAt());
             m.put("expiresAt", k.getExpiresAt());
@@ -313,11 +314,12 @@ public class AdminController {
     public ResponseEntity<Map<String, Object>> createApiKey(
             @Valid @RequestBody ApiKeyRequest request) {
         String rawKey = apiKeyService.generateKey(
-                request.getName(), request.getRole(), request.getExpiresAt());
+                request.getName(), request.getRole(), request.getTenantScopes(), request.getExpiresAt());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("key", rawKey);
         result.put("name", request.getName());
         result.put("role", request.getRole());
+        result.put("tenantScopes", request.getTenantScopes() != null ? request.getTenantScopes() : "*");
         result.put(KEY_MESSAGE, "Save this key — it will not be shown again");
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
@@ -375,12 +377,15 @@ public class AdminController {
     public static class ApiKeyRequest {
         private String name;
         private String role = "ROLE_READONLY";
+        private String tenantScopes;
         private LocalDateTime expiresAt;
 
         public String getName() { return name; }
         public void setName(String name) { this.name = name; }
         public String getRole() { return role; }
         public void setRole(String role) { this.role = role; }
+        public String getTenantScopes() { return tenantScopes; }
+        public void setTenantScopes(String tenantScopes) { this.tenantScopes = tenantScopes; }
         public LocalDateTime getExpiresAt() { return expiresAt; }
         public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
     }

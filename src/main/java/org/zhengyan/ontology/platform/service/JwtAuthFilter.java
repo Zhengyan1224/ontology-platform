@@ -50,10 +50,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                 if (!blacklisted) {
                     List<String> authorities = jwtService.extractAuthorities(token);
+                    String tenants = jwtService.extractTenants(token);
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
                                     username, null,
                                     authorities.stream().map(SimpleGrantedAuthority::new).toList());
+                    authentication.setDetails(tenants != null ? tenants : "*");
                     SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
             }

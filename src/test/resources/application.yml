@@ -42,6 +42,7 @@ ontology:
     refill-tokens: 10
     refill-period-seconds: 60
   owl-generation:
+    enabled: true
     output-dir: generated-ontologies
   viz:
     max-edge-limit: 1000

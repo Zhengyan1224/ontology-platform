@@ -42,24 +42,36 @@ open http://localhost:8080/swagger-ui.html
 ## 架构概览
 
 ```
-┌──────────────┐    SPARQL / NLQ    ┌──────────────────────┐
-│   Client     │ ──────────────────>│   REST Controllers   │
-└──────────────┘                    └──────────────────────┘
-                                            │
-                                    ┌───────┴───────┐
-                                    │  Ontop Engine  │  ← OBDA 映射 + OWL 本体
-                                    └───────┬───────┘
-                                            │ SQL 重写
-                                    ┌───────┴───────┐
-                                    │  Relational DB │  ← H2 / PostgreSQL / MySQL
-                                    └───────────────┘
+┌──────────────┐    SPARQL / NLQ / GraphQL    ┌──────────────────────────┐
+│   Client     │ ────────────────────────────>│   REST / GraphQL Controllers │
+└──────────────┘                              └──────────────────────────┘
+                                                         │
+                                          ┌──────────────┼──────────────┐
+                                          │              │              │
+                                    ┌─────┴─────┐  ┌────┴────┐  ┌──────┴──────┐
+                                    │ Auth      │  │ Cache   │  │ Federated   │
+                                    │ Hardening │  │ (Caffeine)│  │ Query Svc   │
+                                    └─────┬─────┘  └────┬────┘  └──────┬──────┘
+                                          │              │              │
+                                    ┌─────┴──────────────┴──────────────┴─────┐
+                                    │           Ontop Engine                  │
+                                    │    OBDA 映射 + OWL 本体 + Ontop        │
+                                    └──────────────────┬──────────────────────┘
+                                                       │ SQL 重写
+                                    ┌──────────────────┴──────────────────────┐
+                                    │        Relational DB                    │
+                                    │   H2 / PostgreSQL / MySQL              │
+                                    └─────────────────────────────────────────┘
 ```
 
 工作流程：
-1. 用户提交 SPARQL 查询
-2. **Ontop** 根据 OWL 本体 + OBDA 映射将 SPARQL **重写为 SQL**
-3. SQL 在关系数据库上执行
-4. 结果映射回 RDF 三元组返回
+1. 用户通过 REST / GraphQL / SSE 提交查询
+2. **Auth Hardening**（API Key / JWT / Rate Limit）鉴权通过
+3. **TenantAccessEvaluator** 验证 API Key/JWT 对请求中的租户有访问权限（基于 `tenant_scopes` 字段）
+4. **CachedSparqlService** 检查 Caffeine 缓存，命中则直接返回
+5. **FederatedQueryService** 解析 `SERVICE <tenant:{id}>` 子查询，对每个目标租户做 RBAC 校验，并路由到目标引擎
+6. **Ontop** 根据 OWL 本体 + OBDA 映射将 SPARQL **重写为 SQL**
+7. SQL 在关系数据库上执行，结果映射回 RDF 三元组返回
 
 ---
 
@@ -480,8 +492,20 @@ POST /api/v1/tenants/mydata/nlq     → 自然语言查询
 | POST | `/api/v1/tenants/{id}/sparql/explain` | SPARQL → SQL 翻译 |
 | POST | `/api/v1/tenants/{id}/nlq` | 自然语言查询（可选 `sessionId` 字段支持多轮对话） |
 | GET | `/api/v1/tenants/{id}/nlq/stream?question=...&sessionId=...` | 自然语言查询 SSE 流式响应（分阶段推送 status → sparql → result → complete） |
+| GET | `/api/v1/tenants/{id}/graph` | 本体可视化图数据 |
+| POST | `/api/v1/tenants/{id}/generate-owl` | 从数据库 INFORMATION_SCHEMA 自动生成 OWL 本体 |
 | GET | `/api/v1/audit-log` | 查看审计日志 |
 | POST | `/api/v1/audit-log/clear` | 清空审计日志 |
+| GET | `/api/v1/api-keys` | 列出 API Key |
+| POST | `/api/v1/api-keys` | 创建 API Key（可选 `tenantScopes` 字段限制可访问的租户，如 `"sample,university"`，默认 `*` 全部） |
+| PUT | `/api/v1/api-keys/{id}` | 更新 API Key |
+| DELETE | `/api/v1/api-keys/{id}` | 删除 API Key |
+| POST | `/api/v1/api-keys/{id}/revoke` | 吊销 API Key |
+| POST | `/api/v1/auth/login` | JWT 登录 |
+| POST | `/api/v1/auth/revoke-all` | 吊销当前用户所有 JWT |
+| POST | `/api/v1/admin/cache/clear` | 清空 SPARQL 查询缓存 |
+| GET | `/api/v1/admin/cache/stats` | 查看缓存统计 |
+| POST | `/graphql` | GraphQL 查询端点 |
 
 ### NLQ 自然语言查询
 
@@ -585,11 +609,61 @@ ontology:
 |--------|--------|------|
 | `ontology.swagger.enabled` | `true` | 是否启用 Swagger |
 | `ontology.nlq.template-path` | `nlq-templates` | NLQ YAML 模板和 prompt 文件目录 |
-| `ontology.nlq.llm.api-key` | `sk-placeholder` | LLM API 密钥（设为占位符时使用模板模式） |
+| `ontology.nlq.llm.api-key` | `sk-placeholder` | LLM API 密钥（设为占位符时使用模板模式；可用 `${LLM_API_KEY}` 环境变量） |
 | `ontology.nlq.llm.model` | `gpt-4o-mini` | LLM 模型名称 |
 | `ontology.nlq.llm.base-url` | (空) | LLM API 基础 URL（可用于兼容 OpenAI 的代理） |
 | `ontology.nlq.stream.timeout` | `60000` | SSE 流式响应超时时间（毫秒） |
 | `ontology.nlq.session.ttl` | `1800000` | 会话过期时间（毫秒，默认 30 分钟） |
 | `ontology.nlq.session.max` | `1000` | 最大同时会话数 |
 | `ontology.nlq.session.cleanup-interval` | `300000` | 过期会话清理间隔（毫秒，默认 5 分钟） |
+| `ontology.auth.jwt-secret` | `default-jwt-secret-key` | JWT 签名密钥（可用 `${JWT_SECRET}` 环境变量） |
+| `ontology.auth.admin-password` | `admin123` | 管理员密码（可用 `${ADMIN_PASSWORD}` 环境变量） |
+| `ontology.cache.sparql.enabled` | `true` | 是否启用 SPARQL 结果缓存 |
+| `ontology.cache.sparql.ttl` | `300` | 缓存过期时间（秒） |
+| `ontology.cache.sparql.max-size` | `1000` | 缓存最大条目数 |
+| `ontology.cache.query.ttl` | `60` | 查询缓存过期时间（秒） |
+| `ontology.cache.query.max-size` | `500` | 查询缓存最大条目数 |
+| `ontology.rate-limit.login.capacity` | `5` | 登录接口令牌桶容量 |
+| `ontology.rate-limit.login.tokens` | `5` | 登录接口每秒补充令牌数 |
+| `ontology.rate-limit.reinit.capacity` | `3` | reinit 接口令牌桶容量 |
+| `ontology.rate-limit.reinit.tokens` | `1` | reinit 接口每秒补充令牌数 |
+| `ontology.rate-limit.audit-clear.capacity` | `3` | 审计日志清理接口令牌桶容量 |
+| `ontology.rate-limit.audit-clear.tokens` | `1` | 审计日志清理接口每秒补充令牌数 |
+| `ontology.federated-query.timeout-ms` | `30000` | 联邦查询聚合超时（毫秒） |
+| `ontology.federated-query.per-subquery-timeout-ms` | `0` | 单个子查询超时（0 表示使用聚合超时） |
+| `ontology.federated-query.max-concurrency` | `4` | 联邦查询最大并发子查询数 |
+| `ontology.owl-generation.default-package` | `http://example.org/ontology#` | OWL 默认命名空间 |
+| `ontology.owl-generation.include-schema-pattern` | `PUBLIC` | 限制扫描的数据库 schema 模式 |
+| `ontology.graph.cache.enabled` | `true` | 是否启用本体图缓存 |
+| `ontology.graph.cache.ttl` | `600` | 图缓存过期时间（秒） |
+| `ontology.graph.cache.max-size` | `50` | 图缓存最大条目数 |
 | `ontology.tenants` | — | 租户列表 |
+
+---
+
+## 项目状态
+
+| 阶段 | 进度 | 测试 |
+|------|------|------|
+| Phase 1 — 核心扩展 | ✅ 100% | 27 |
+| Phase 2 — 产品化完善 | ✅ 100% (5 个子模块) | +44 |
+| Phase 3 — SSE 硬化 + 探索性功能 | ✅ 100% (41/41 任务) | +44 |
+| Phase 4 — 代码合规修复 | ✅ 100% (180 项问题) | — |
+| Phase 5 — 联邦查询 RBAC 强化 | ✅ 100% (39/39 任务) | +12 |
+| Polish & Tests — 缓存指标 + OWL 命名 + 缺失测试 | ✅ 100% (12/12 任务) | +34 |
+| **合计** | | **149 测试，0 失败** |
+
+### Phase 3/5 完成详情
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| Auth Hardening | ✅ 12/12 | API Key 缓存 + JWT 黑名单 + 速率限制 + 审计 |
+| 查询缓存 | ✅ 7/7 + 5.1 缓存指标 | hit/miss/eviction/average load penalty gauges |
+| OWL 生成 | ✅ 4/4 + 5.3 命名约定 | singularize 修复、`outputDir`/`enabled`、PK `FunctionalProperty` |
+| 联邦查询 RBAC | ✅ 已归档 | TenantAccessEvaluator + per-sub-query 超时 + 指标 |
+| GraphQL | ✅ 5/5 | — |
+| 本体可视化 | ✅ 3/3 | — |
+
+### 开发路线图
+
+详见 [`docs/roadmap.md`](docs/roadmap.md)。

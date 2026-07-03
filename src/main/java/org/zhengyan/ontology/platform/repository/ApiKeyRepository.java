@@ -26,8 +26,9 @@ public class ApiKeyRepository {
 
     public int save(ApiKeyEntity key) {
         return jdbcTemplate.update(
-                "INSERT INTO api_keys (key_hash, key_prefix, name, role, enabled, created_at, updated_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO api_keys (key_hash, key_prefix, name, role, tenant_scopes, enabled, created_at, updated_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 key.getKeyHash(), key.getKeyPrefix(), key.getName(), key.getRole(),
+                key.getTenantScopes() != null ? key.getTenantScopes() : "*",
                 key.isEnabled(), Timestamp.valueOf(key.getCreatedAt()),
                 Timestamp.valueOf(key.getUpdatedAt()),
                 key.getExpiresAt() != null ? Timestamp.valueOf(key.getExpiresAt()) : null);
@@ -83,12 +84,14 @@ public class ApiKeyRepository {
             Timestamp updatedAt = rs.getTimestamp("updated_at");
             Timestamp lastUsedAt = rs.getTimestamp("last_used_at");
             Timestamp expiresAt = rs.getTimestamp("expires_at");
+            String tenantScopes = rs.getString("tenant_scopes");
             return new ApiKeyEntity(
                     rs.getLong("id"),
                     rs.getString("key_hash"),
                     rs.getString("key_prefix"),
                     rs.getString("name"),
                     rs.getString("role"),
+                    tenantScopes != null ? tenantScopes : "*",
                     rs.getBoolean("enabled"),
                     createdAt != null ? createdAt.toLocalDateTime() : LocalDateTime.now(),
                     updatedAt != null ? updatedAt.toLocalDateTime() : LocalDateTime.now(),

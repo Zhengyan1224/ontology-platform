@@ -58,31 +58,80 @@
 
 ---
 
-## 🟢 Phase 3 — 探索性功能
+## 🟢 Phase 3 — SSE 硬化 + 探索性功能 ✅ 已完成
 
-- [ ] **3.1 GraphQL 接口**
-  - 引入 `graphql-spring-boot-starter`
-  - 将 SPARQL 查询封装为 GraphQL 查询/mutation
-  - 前端调用更轻量
+> 所有 41 个任务完成，含 Phase 5.1~5.3 补全。
 
-- [ ] **3.2 本体可视化**
-  - 添加 `/api/v1/tenants/{id}/graph` 端点返回本体结构
-  - 前端使用 D3.js / vis.js 展示类层次、属性关系
-  - 点击节点可查看实例数据
+- [x] **3.1 Auth Hardening (12/12)**
+  - API Key 缓存 Caffeine 化（`ApiKeyService` + 可配置 TTL/max-size）
+  - JWT 黑名单表 `jwt_blacklist` + `JwtBlacklistRepository` + 定时清理
+  - `JwtAuthFilter` 请求时检查黑名单
+  - Bucket4j 速率限制过滤器（login / reinit / audit-clear）
+  - 认证失败审计日志（ApiKeyFilter / JwtAuthFilter / RateLimitFilter）
+  - `${ADMIN_PASSWORD}` / `${JWT_SECRET}` / `${LLM_API_KEY}` 环境变量占位符
+  - 默认密钥启动警告
+  - 吊销端点（`POST /api-keys/{id}/revoke` + `POST /auth/revoke-all`）
 
-- [ ] **3.3 查询缓存**
-  - 引入 Spring Cache (Caffeine/Redis)
-  - 对相同 SPARQL 查询缓存结果
-  - 考虑缓存失效策略（定时过期 + 手动清空）
+- [x] **3.2 查询缓存 (7/7)**
+  - Spring Cache (Caffeine) + `@Cacheable` 装饰 SPARQL 执行路径
+  - Tenant-aware 缓存在 reinit 时自动清空
+  - `POST /admin/cache/clear` + `GET /admin/cache/stats` 端点
+  - `ontology.cache.*` 配置属性
+  - ✅ Micrometer 缓存指标: `hit.count` / `miss.count` / `eviction.count` / `average.load.penalty`
 
-- [ ] **3.4 SQL DDL → OWL 自动生成**
-  - 读取数据库 INFORMATION_SCHEMA
-  - 自动生成初步 OWL 本体（表→类，列→属性，外键→对象属性）
-  - 降低新租户接入成本
+- [x] **3.3 SQL DDL → OWL 自动生成 (4/4)**
+  - `OwlGeneratorService` 读取 INFORMATION_SCHEMA → OWL Turtle
+  - `POST /tenants/{id}/generate-owl` 端点
+  - `ontology.owl-generation.*` 配置（含 `outputDir` / `enabled`）
+  - ✅ 命名约定配置：singularize 修复（`statuses` → `Status`）、前缀、camelCase、PK `FunctionalProperty`
 
-- [ ] **3.5 联邦查询**
-  - 支持在 SPARQL 中使用 `SERVICE <tenant:xxx>` 语法
-  - 跨多个租户/数据库做联合查询
+- [x] **3.4 联邦查询 (4/4)**
+  - `FederatedQueryService` 解析 `SERVICE <tenant:{id}>` 模式
+  - `CompletableFuture` 并发执行子查询
+  - `TenantAccessEvaluator` 按租户 RBAC 校验（源租户 + 每个目标租户）
+  - `perSubqueryTimeoutMs` 单独的每个子查询超时配置
+  - 联邦查询指标 （`tenantId.federated` counter + timer）
+
+- [x] **3.5 GraphQL 接口 (5/5)**
+  - `schema.graphqls` + `SparqlResult` / `NlqResult` 类型 + JSON 标量
+  - `GraphQLDataFetcher` + `@QueryMapping`
+  - `/graphql` 端点受 Spring Security 保护
+
+- [x] **3.6 本体可视化 (3/3)**
+  - `OntologyGraphService` OWL → nodes/edges JSON
+  - `GET /tenants/{id}/graph` 端点
+  - 每租户 Caffeine 缓存
+
+## 🟡 Phase 4 — 代码质量与合规
+
+- [x] **4.1 代码合规扫描修复 (180 项问题)**
+  - 为 25+ 个类添加 `@author` Javadoc
+  - 为接口方法添加 `{@inheritDoc}` Javadoc（OntologyEngine / SchemaProvider）
+  - 提取重复字符串字面量为常量（S1192）
+  - 替换 `RuntimeException` 为 `OntologyPlatformException`（S112）
+  - 抑制过多的构造参数警告（S107）
+  - 移除未使用字段 / 局部变量 / 方法参数（S1068 / S1481 / S1172 / S1450）
+  - 填充空 catch 块 / 空方法（S108 / S1186）
+  - 降低认知复杂度：`DynamicSchemaProvider` 拆分为 5 个辅助方法（S3776）
+  - 修复 `Optional` 未调用 `isPresent()` 直接 `.get()`（S3655）
+  - 为类型通配符提供参数化类型（S3740）
+  - 其他：`UnaryOperator<>`、缺失大括号、魔法数字、嵌套 if 合并
+
+- [x] **4.2 补充缺失的测试** ✅ 已完成（7 个新测试类 + 扩展现有）
+  - `RateLimitFilterTest` (4): tryConsume true/false + 不同 IP 独立桶
+  - `JwtBlacklistRepositoryTest` (8): 增/查/过期/批量作废
+  - `ApiKeyServiceTest` (10): 缓存、失效、过期 key 修复
+  - `JwtAuthFilterTest` (6): 黑名单、过期/无效/有效 token、租户域
+  - `OwlGeneratorServiceTest` (+5): camelCase、前缀、PK、空 DB、边缘用例
+  - `QueryCacheTest` (+1): 并发访问场景
+
+## 🟢 Phase 5 — 探索性方向
+
+- [x] **5.1 缓存 Micrometer 指标** (Phase 3.2.5 延续) — ✅ 已完成（hit.count / miss.count / eviction.count / average.load.penalty）
+- [x] **5.2 联邦查询 RBAC + 超时/并发限制** (Phase 3.4 延续) — ✅ 已完成（`TenantAccessEvaluator` + `perSubqueryTimeoutMs` + 指标）
+- [x] **5.3 OWL 生成命名约定配置** (Phase 3.3 延续) — ✅ 已完成（singularize 修复、`outputDir`/`enabled` 属性、PK `FunctionalProperty`）
+- [ ] **5.4 前端本体可视化仪表盘** (基于 Phase 3.6 graph 端点)
+- [ ] **5.5 OpenTelemetry 分布式追踪**
 
 ---
 
@@ -94,3 +143,8 @@
 | 2026-07-02 | Phase 2.2 SPARQL 结果格式多样化 | CSV / TSV / SPARQL XML / SPARQL JSON 格式支持完成。共 36 个测试通过。 |
 | 2026-07-02 | Phase 2.3 NLQ 增强 | 数据驱动模板、LLM prompt 优化、SSE 流式响应、多轮对话完成。共 65 个测试通过。 |
 | 2026-07-02 | Phase 2.1 API 认证与鉴权 | API Key 持久化 + JWT + RBAC + CRUD 端点 + 9 个集成测试。共 71 个测试通过。 |
+| 2026-07-03 | Phase 3 SSE 硬化 + 探索性功能 | 38/41 任务完成。Auth Hardening (12/12)、查询缓存 (6/7)、OWL 生成 (3/4)、联邦查询 (4/4)、GraphQL (5/5)、本体可视化 (3/3)。共 103 个测试通过。 |
+| 2026-07-03 | Phase 4.1 代码合规修复 | 修复 CSV 扫描 180 项问题：@author 标签、重复字符串常量、泛型异常、未使用字段等。编译与全部 103 测试通过。 |
+| 2026-07-03 | Phase 2 产品化完善归档 | SPARQL 格式协商、NLQ YAML 模板、LLM prompt 优化、流式+多轮对话、API Key DB 持久化、交叉测试全部完成。归档为 `phase2-productization`。 |
+| 2026-07-03 | Phase 5.2 联邦查询 RBAC 强化 | `TenantAccessEvaluator` + 按租户 API 作用域 + per-sub-query 超时 + 联邦查询指标 + 12 个新测试。归档为 `federated-query-rbac`。共 115 个测试通过。 |
+| 2026-07-03 | Polish & Tests 收尾 | 缓存指标 (5.1)、OWL 命名 (3.3/5.3)、34 个新测试：`RateLimitFilterTest`(4)、`JwtBlacklistRepositoryTest`(8)、`ApiKeyServiceTest`(10)、`JwtAuthFilterTest`(6)、+OwlGeneratorServiceTest 扩展(5)、+QueryCacheTest 扩展(1)。修复 `ApiKeyService.validateKey` 过期 key 返回 bug。共 **149 个测试，0 失败**。 |

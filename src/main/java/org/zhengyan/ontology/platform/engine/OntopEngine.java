@@ -5,7 +5,11 @@ import org.zhengyan.ontology.platform.model.Tenant;
 import it.unibz.inf.ontop.injection.OntopSQLOWLAPIConfiguration;
 import it.unibz.inf.ontop.rdf4j.repository.OntopRepository;
 import it.unibz.inf.ontop.rdf4j.repository.OntopRepositoryConnection;
+import org.eclipse.rdf4j.model.Model;
+import org.eclipse.rdf4j.model.impl.TreeModel;
+import org.eclipse.rdf4j.query.Binding;
 import org.eclipse.rdf4j.query.BindingSet;
+import org.eclipse.rdf4j.query.GraphQueryResult;
 import org.eclipse.rdf4j.query.QueryLanguage;
 import org.eclipse.rdf4j.query.TupleQueryResult;
 import org.eclipse.rdf4j.repository.Repository;
@@ -64,36 +68,69 @@ public class OntopEngine implements OntologyEngine {
     @Override
     public SparqlQueryResult executeQuery(String sparql) throws Exception {
         assertInitialized();
-
         long start = System.currentTimeMillis();
-
-        List<String> variables = new ArrayList<>();
-        List<Map<String, Object>> rows = new ArrayList<>();
 
         RepositoryConnection conn = repo.getConnection();
         try {
-            TupleQueryResult result = conn.prepareTupleQuery(QueryLanguage.SPARQL, sparql).evaluate();
-            variables.addAll(result.getBindingNames());
-
-            while (result.hasNext()) {
-                BindingSet bs = result.next();
-                Map<String, Object> row = new LinkedHashMap<>();
-                for (String var : variables) {
-                    var binding = bs.getBinding(var);
-                    row.put(var, binding != null ? binding.getValue().stringValue() : null);
-                }
-                rows.add(row);
+            if (isGraphQuery(sparql)) {
+                return executeGraphQuery(conn, sparql, start);
+            } else {
+                return executeTupleQuery(conn, sparql, start);
             }
-            ((AutoCloseable) result).close();
         } finally {
             closeConnection(conn);
         }
+    }
+
+    private SparqlQueryResult executeGraphQuery(RepositoryConnection conn, String sparql, long start) throws Exception {
+        GraphQueryResult graphResult = conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql).evaluate();
+        try {
+            Model model = new TreeModel();
+            while (graphResult.hasNext()) {
+                model.add(graphResult.next());
+            }
+            long elapsed = System.currentTimeMillis() - start;
+            SparqlQueryResult result = new SparqlQueryResult(model, elapsed);
+            try {
+                result.setTranslatedSql(translateToSql(sparql));
+            } catch (Exception e) {
+                result.setTranslatedSql("[CONSTRUCT query - SQL translation not available]");
+            }
+            return result;
+        } finally {
+            try { ((AutoCloseable) graphResult).close(); } catch (Exception ignored) { }
+        }
+    }
+
+    private SparqlQueryResult executeTupleQuery(RepositoryConnection conn, String sparql, long start) throws Exception {
+        List<String> variables = new ArrayList<>();
+        List<Map<String, Object>> rows = new ArrayList<>();
+
+        TupleQueryResult tupleResult = conn.prepareTupleQuery(QueryLanguage.SPARQL, sparql).evaluate();
+        try {
+            variables.addAll(tupleResult.getBindingNames());
+            while (tupleResult.hasNext()) {
+                BindingSet bs = tupleResult.next();
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (String vn : variables) {
+                    Binding binding = bs.getBinding(vn);
+                    row.put(vn, binding != null ? binding.getValue().stringValue() : null);
+                }
+                rows.add(row);
+            }
+        } finally {
+            try { ((AutoCloseable) tupleResult).close(); } catch (Exception ignored) { }
+        }
 
         long elapsed = System.currentTimeMillis() - start;
-
         SparqlQueryResult queryResult = new SparqlQueryResult(variables, rows, elapsed);
         queryResult.setTranslatedSql(translateToSql(sparql));
         return queryResult;
+    }
+
+    private boolean isGraphQuery(String sparql) {
+        String trimmed = sparql.trim().toUpperCase();
+        return trimmed.startsWith("CONSTRUCT") || trimmed.startsWith("DESCRIBE");
     }
 
     @Override

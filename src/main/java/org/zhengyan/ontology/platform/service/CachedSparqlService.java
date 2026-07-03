@@ -38,7 +38,7 @@ public class CachedSparqlService {
         // TODO: implement cache eviction logic
     }
 
+    @CacheEvict(value = "sparqlResults", allEntries = true)
     public void evictForTenant(String tenantId) {
-        evictAll();
     }
 }

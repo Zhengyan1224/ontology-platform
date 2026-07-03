@@ -53,17 +53,18 @@ public class ApiKeyService {
         }
         String hash = sha256(rawKey);
         Optional<ApiKeyEntity> result = apiKeyRepository.findByKeyHash(hash);
-        result.ifPresent(key -> {
+        if (result.isPresent()) {
+            ApiKeyEntity key = result.get();
             if (key.getExpiresAt() != null && key.getExpiresAt().isBefore(LocalDateTime.now())) {
-                return;
+                return Optional.empty();
             }
             cache.put(rawKey, key);
             apiKeyRepository.updateLastUsedAt(key.getId(), LocalDateTime.now());
-        });
+        }
         return result;
     }
 
-    public String generateKey(String name, String role, LocalDateTime expiresAt) {
+    public String generateKey(String name, String role, String tenantScopes, LocalDateTime expiresAt) {
         SecureRandom random = new SecureRandom();
         byte[] bytes = new byte[KEY_BYTE_LENGTH];
         random.nextBytes(bytes);
@@ -76,6 +77,7 @@ public class ApiKeyService {
         entity.setKeyPrefix(prefix);
         entity.setName(name);
         entity.setRole(role);
+        entity.setTenantScopes(tenantScopes != null ? tenantScopes : "*");
         entity.setEnabled(true);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
@@ -86,7 +88,15 @@ public class ApiKeyService {
         return rawKey;
     }
 
+    public String generateKey(String name, String role, LocalDateTime expiresAt) {
+        return generateKey(name, role, "*", expiresAt);
+    }
+
     public void seedKey(String rawKey, String name, String role) {
+        seedKey(rawKey, name, role, "*");
+    }
+
+    public void seedKey(String rawKey, String name, String role, String tenantScopes) {
         String hash = sha256(rawKey);
         if (apiKeyRepository.existsByKeyHash(hash)) {
             return;
@@ -99,6 +109,7 @@ public class ApiKeyService {
         entity.setKeyPrefix(prefix);
         entity.setName(name);
         entity.setRole(role);
+        entity.setTenantScopes(tenantScopes != null ? tenantScopes : "*");
         entity.setEnabled(true);
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());

@@ -11,6 +11,7 @@ public class ApiKeyEntity {
     private String keyPrefix;
     private String name;
     private String role;
+    private String tenantScopes;
     private boolean enabled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -20,14 +21,15 @@ public class ApiKeyEntity {
     public ApiKeyEntity() {}
 
     public ApiKeyEntity(Long id, String keyHash, String keyPrefix, String name,
-                        String role, boolean enabled, LocalDateTime createdAt,
-                        LocalDateTime updatedAt, LocalDateTime lastUsedAt,
-                        LocalDateTime expiresAt) {
+                        String role, String tenantScopes, boolean enabled,
+                        LocalDateTime createdAt, LocalDateTime updatedAt,
+                        LocalDateTime lastUsedAt, LocalDateTime expiresAt) {
         this.id = id;
         this.keyHash = keyHash;
         this.keyPrefix = keyPrefix;
         this.name = name;
         this.role = role;
+        this.tenantScopes = tenantScopes;
         this.enabled = enabled;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -45,6 +47,8 @@ public class ApiKeyEntity {
     public void setName(String name) { this.name = name; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
+    public String getTenantScopes() { return tenantScopes; }
+    public void setTenantScopes(String tenantScopes) { this.tenantScopes = tenantScopes; }
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public LocalDateTime getCreatedAt() { return createdAt; }

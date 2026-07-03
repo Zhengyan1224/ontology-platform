@@ -3,6 +3,7 @@ package org.zhengyan.ontology.platform.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.zhengyan.ontology.platform.config.OwlGenerationProperties;
 import org.zhengyan.ontology.platform.model.Tenant;
 
 import java.io.StringWriter;
@@ -16,7 +17,10 @@ public class OwlGeneratorService {
 
     private static final String RDFS_LABEL = "    rdfs:label \"";
 
-    public OwlGeneratorService() {
+    private final OwlGenerationProperties namingProperties;
+
+    public OwlGeneratorService(OwlGenerationProperties namingProperties) {
+        this.namingProperties = namingProperties;
     }
 
     public String generateOwl(Tenant tenant) throws Exception {
@@ -34,6 +38,7 @@ public class OwlGeneratorService {
             sw.append("<").append(ns).append("> rdf:type owl:Ontology .\n\n");
 
             List<TableInfo> tables = readTables(conn, tenant);
+            Set<String> primaryKeys = readPrimaryKeys(conn, tenant);
             Set<String> objectProperties = new HashSet<>();
 
             for (TableInfo table : tables) {
@@ -57,18 +62,29 @@ public class OwlGeneratorService {
                 for (ColumnInfo col : table.columns) {
                     String propName = toPropertyName(col.name, table.name);
 
+                    String pkKey = table.name + "." + col.name;
+                    boolean isPK = primaryKeys.contains(pkKey);
+
                     if (col.fkTargetTable != null) {
                         String targetClass = toClassName(col.fkTargetTable);
                         sw.append(":").append(propName).append(" rdf:type owl:ObjectProperty ;\n");
                         sw.append("    rdfs:domain :").append(toClassName(table.name)).append(" ;\n");
                         sw.append("    rdfs:range :").append(targetClass).append(" ;\n");
-                        sw.append(RDFS_LABEL).append(col.name).append("\" .\n\n");
+                        sw.append(RDFS_LABEL).append(col.name).append("\" .\n");
+                        if (isPK) {
+                            sw.append(":").append(propName).append(" rdf:type owl:FunctionalProperty .\n");
+                        }
+                        sw.append("\n");
                     } else {
                         String xsdType = mapSqlTypeToXsd(col.sqlType);
                         sw.append(":").append(propName).append(" rdf:type owl:DatatypeProperty ;\n");
                         sw.append("    rdfs:domain :").append(toClassName(table.name)).append(" ;\n");
                         sw.append("    rdfs:range ").append(xsdType).append(" ;\n");
-                        sw.append(RDFS_LABEL).append(col.name).append("\" .\n\n");
+                        sw.append(RDFS_LABEL).append(col.name).append("\" .\n");
+                        if (isPK) {
+                            sw.append(":").append(propName).append(" rdf:type owl:FunctionalProperty .\n");
+                        }
+                        sw.append("\n");
                     }
                 }
             }
@@ -110,6 +126,23 @@ public class OwlGeneratorService {
         return columns;
     }
 
+    private Set<String> readPrimaryKeys(Connection conn, Tenant tenant) throws SQLException {
+        Set<String> pks = new HashSet<>();
+        String catalog = conn.getCatalog();
+        String schema = getSchema(tenant);
+        try (ResultSet rs = conn.getMetaData().getTables(catalog, schema, "%", new String[]{"TABLE"})) {
+            while (rs.next()) {
+                String tableName = rs.getString("TABLE_NAME");
+                try (ResultSet pkRs = conn.getMetaData().getPrimaryKeys(catalog, schema, tableName)) {
+                    while (pkRs.next()) {
+                        pks.add(pkRs.getString("TABLE_NAME") + "." + pkRs.getString("COLUMN_NAME"));
+                    }
+                }
+            }
+        }
+        return pks;
+    }
+
     private void readForeignKeys(Connection conn, String catalog, String schema, TableInfo table) throws SQLException {
         try (ResultSet rs = conn.getMetaData().getImportedKeys(catalog, schema, table.name)) {
             while (rs.next()) {
@@ -148,6 +181,48 @@ public class OwlGeneratorService {
     }
 
     private String toClassName(String name) {
+        String singular = singularize(name);
+        String base = toPascalCase(singular);
+        String prefix = namingProperties.getTableToClassPrefix();
+        String className = prefix.isEmpty() ? base : toPascalCase(prefix) + base;
+        if ("camelCase".equalsIgnoreCase(namingProperties.getNameCase())) {
+            if (className.length() > 0) {
+                className = Character.toLowerCase(className.charAt(0)) + className.substring(1);
+            }
+        }
+        return className;
+    }
+
+    private String toPropertyName(String columnName, String tableName) {
+        String base = columnName.toLowerCase()
+                .replace(tableName.toLowerCase() + "_id", tableName.toLowerCase() + "Id")
+                .replace("_id", "Id")
+                .replace("_", "");
+        String prefix = namingProperties.getColumnToPropertyPrefix();
+        if (!prefix.isEmpty()) {
+            base = prefix + Character.toUpperCase(base.charAt(0)) + base.substring(1);
+        }
+        return base;
+    }
+
+    private String singularize(String name) {
+        String lower = name.toLowerCase();
+        if (lower.endsWith("ies") && lower.length() > 3) {
+            return name.substring(0, name.length() - 3) + "y";
+        }
+        if (lower.endsWith("sses") && lower.length() > 4) {
+            return name.substring(0, name.length() - 2);
+        }
+        if (lower.endsWith("ses") && lower.length() > 3) {
+            return name.substring(0, name.length() - 2);
+        }
+        if (lower.endsWith("s") && !lower.endsWith("ss") && lower.length() > 2) {
+            return name.substring(0, name.length() - 1);
+        }
+        return name;
+    }
+
+    private String toPascalCase(String name) {
         StringBuilder sb = new StringBuilder();
         boolean nextUpper = true;
         for (char c : name.toCharArray()) {
@@ -161,13 +236,6 @@ public class OwlGeneratorService {
             }
         }
         return sb.toString();
-    }
-
-    private String toPropertyName(String columnName, String tableName) {
-        return columnName.toLowerCase()
-                .replace(tableName.toLowerCase() + "_id", tableName.toLowerCase() + "Id")
-                .replace("_id", "Id")
-                .replace("_", "");
     }
 
     private String mapSqlTypeToXsd(int sqlType) {

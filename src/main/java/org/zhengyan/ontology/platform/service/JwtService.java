@@ -34,20 +34,27 @@ public class JwtService {
     }
 
     public String generateToken(String username, String role) {
-        return generateToken(username, role, UUID.randomUUID().toString());
+        return generateToken(username, role, UUID.randomUUID().toString(), null);
     }
 
     public String generateToken(String username, String role, String jti) {
+        return generateToken(username, role, jti, null);
+    }
+
+    public String generateToken(String username, String role, String jti, String tenants) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .id(jti)
                 .subject(username)
                 .claim("role", role)
                 .issuedAt(now)
                 .expiration(expiry)
-                .signWith(secretKey)
-                .compact();
+                .signWith(secretKey);
+        if (tenants != null && !tenants.isBlank()) {
+            builder.claim("tenants", tenants);
+        }
+        return builder.compact();
     }
 
     public String extractUsername(String token) {
@@ -64,6 +71,11 @@ public class JwtService {
 
     public String extractRole(String token) {
         return parseClaims(token).get("role", String.class);
+    }
+
+    public String extractTenants(String token) {
+        Claims claims = parseClaims(token);
+        return claims.get("tenants", String.class);
     }
 
     public boolean isTokenValid(String token) {

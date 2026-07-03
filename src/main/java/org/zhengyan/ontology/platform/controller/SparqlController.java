@@ -72,7 +72,7 @@ public class SparqlController {
         SparqlResultFormat format = SparqlResultFormat.fromAccept(acceptHeader)
                 .orElse(null);
 
-        if (format == null || format.isGraphFormat()) {
+        if (format == null) {
             response.setStatus(HttpServletResponse.SC_NOT_ACCEPTABLE);
             return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
         }
@@ -81,9 +81,30 @@ public class SparqlController {
         try {
             SparqlQueryResult result = cachedSparqlService.executeQuery(tenantId, sparql);
             long elapsed = System.currentTimeMillis() - start;
+            int resultCount = result.isGraphResult() ? result.getGraphModel().size() : result.getResults().size();
             auditService.recordSparqlQuery(tenantId, sparql, result.getTranslatedSql(),
-                    elapsed, true, null, result.getResults().size());
+                    elapsed, true, null, resultCount);
             metricsService.recordQuery(tenantId, elapsed, true);
+
+            if (result.isGraphResult()) {
+                if (!format.isGraphFormat()) {
+                    response.setStatus(HttpServletResponse.SC_NOT_ACCEPTABLE);
+                    return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
+                }
+                response.setContentType(format.getMediaType().toString());
+                return (StreamingResponseBody) out -> {
+                    try {
+                        resultFormatter.writeGraphResult(format, result.getGraphModel(), out);
+                    } catch (Exception e) {
+                        throw new OntologyPlatformException("Failed to write graph result", 500, "WRITE_ERROR", e);
+                    }
+                };
+            }
+
+            if (format.isGraphFormat()) {
+                response.setStatus(HttpServletResponse.SC_NOT_ACCEPTABLE);
+                return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
+            }
 
             if (format == SparqlResultFormat.JSON) {
                 return ResponseEntity.ok(result);

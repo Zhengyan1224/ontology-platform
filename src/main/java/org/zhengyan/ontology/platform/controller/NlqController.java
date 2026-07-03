@@ -33,14 +33,18 @@ public class NlqController {
         this.streamTimeout = streamTimeout;
     }
 
+    private static final String HEADER_SESSION_ID = "X-Session-Id";
+
     @PostMapping(value = "/tenants/{tenantId}/nlq",
             consumes = MediaType.APPLICATION_JSON_VALUE,
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<NlqResult> query(
             @PathVariable String tenantId,
-            @RequestBody NlqRequest request) throws Exception {
+            @RequestBody NlqRequest request,
+            @RequestHeader(value = HEADER_SESSION_ID, required = false) String headerSessionId) throws Exception {
+        String sessionId = firstNonBlank(headerSessionId, request.getSessionId());
         long start = System.currentTimeMillis();
-        NlqResult result = nlqService.answer(tenantId, request.getQuestion(), request.getSessionId());
+        NlqResult result = nlqService.answer(tenantId, request.getQuestion(), sessionId);
         long elapsed = System.currentTimeMillis() - start;
 
         auditService.recordNlqQuery(tenantId, request.getQuestion(),
@@ -48,7 +52,9 @@ public class NlqController {
                 result.getResults().size());
         metricsService.recordNlq(tenantId, elapsed, true, result.getMode());
 
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok()
+                .header(HEADER_SESSION_ID, sessionId)
+                .body(result);
     }
 
     @GetMapping(value = "/tenants/{tenantId}/nlq/stream",
@@ -56,7 +62,9 @@ public class NlqController {
     public SseEmitter streamQuery(
             @PathVariable String tenantId,
             @RequestParam String question,
-            @RequestParam(required = false) String sessionId) {
+            @RequestParam(required = false) String sessionId,
+            @RequestHeader(value = HEADER_SESSION_ID, required = false) String headerSessionId) {
+        String resolvedSessionId = firstNonBlank(headerSessionId, sessionId);
         SseEmitter emitter = new SseEmitter(streamTimeout);
 
         emitter.onCompletion(() -> log.info("SSE stream completed for tenant '{}'", tenantId));
@@ -66,8 +74,15 @@ public class NlqController {
         });
         emitter.onError(ex -> log.error("SSE stream error for tenant '{}': {}", tenantId, ex.getMessage()));
 
-        nlqService.streamAnswer(tenantId, question, sessionId, emitter);
+        nlqService.streamAnswer(tenantId, question, resolvedSessionId, emitter);
 
         return emitter;
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) return v;
+        }
+        return null;
     }
 }
