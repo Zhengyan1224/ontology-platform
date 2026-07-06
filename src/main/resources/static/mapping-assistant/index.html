@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapping Assistant</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #202636; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: #182033; color: #f5f7fb; position: sticky; top: 0; z-index: 5; }
+h1 { font-size: 18px; margin: 0; white-space: nowrap; }
+label { font-size: 13px; color: #637083; }
+header label { color: #c8d0dc; }
+input, select, textarea, button { font: inherit; }
+input, select, textarea { border: 1px solid #c8d1df; border-radius: 6px; padding: 8px 10px; background: #fff; color: #202636; }
+header input, header select { background: #111a2d; color: #f5f7fb; border-color: #44506a; }
+button { border: 1px solid #2868d8; border-radius: 6px; padding: 8px 12px; background: #2868d8; color: #fff; cursor: pointer; }
+button.secondary { background: #fff; color: #2868d8; }
+button:disabled { opacity: 0.55; cursor: default; }
+main { display: grid; grid-template-columns: 360px 1fr; min-height: calc(100vh - 56px); }
+.panel { background: #fff; border-right: 1px solid #dce3ee; padding: 18px; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.inline { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.inline input { width: auto; }
+textarea { min-height: 120px; resize: vertical; }
+.hint { color: #6b7688; font-size: 12px; line-height: 1.4; }
+.content { padding: 18px; min-width: 0; }
+.status { margin-bottom: 12px; color: #536174; }
+.summary { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.metric { background: #fff; border: 1px solid #dce3ee; border-radius: 8px; padding: 12px; }
+.metric span { display: block; font-size: 12px; color: #6b7688; }
+.metric strong { display: block; margin-top: 5px; font-size: 15px; }
+.tabs { display: flex; gap: 6px; border-bottom: 1px solid #dce3ee; margin-top: 8px; }
+.tab { background: transparent; color: #42526a; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 12px; }
+.tab.active { color: #174ea6; border-bottom-color: #2868d8; }
+.tab-panel { display: none; background: #fff; border: 1px solid #dce3ee; border-top: 0; min-height: 420px; }
+.tab-panel.active { display: block; }
+.toolbar { display: flex; justify-content: flex-end; gap: 8px; padding: 10px; border-bottom: 1px solid #edf1f6; }
+pre { margin: 0; padding: 14px; white-space: pre-wrap; word-break: break-word; overflow: auto; max-height: 68vh; line-height: 1.45; }
+.markdown { padding: 16px; line-height: 1.6; max-height: 68vh; overflow: auto; }
+.markdown h2 { margin: 12px 0 8px; font-size: 18px; }
+.markdown ul { padding-left: 22px; }
+.list { padding: 14px 18px; margin: 0; line-height: 1.6; }
+.empty { padding: 40px; text-align: center; color: #748095; background: #fff; border: 1px dashed #c8d1df; border-radius: 8px; }
+@media (max-width: 900px) {
+  header { flex-wrap: wrap; }
+  main { grid-template-columns: 1fr; }
+  .panel { border-right: 0; border-bottom: 1px solid #dce3ee; }
+  .summary { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Mapping Assistant</h1>
+  <label for="api-key">API Key</label>
+  <input id="api-key" type="password" placeholder="admin-key-001" autocomplete="off">
+  <button id="load-tenants" type="button" class="secondary">Load Tenants</button>
+</header>
+
+<main>
+  <aside class="panel">
+    <div class="field">
+      <label for="tenant">Tenant</label>
+      <select id="tenant"></select>
+    </div>
+    <div class="field">
+      <label for="focus">Focus</label>
+      <select id="focus">
+        <option value="all">All</option>
+        <option value="naming">Naming</option>
+        <option value="security">Security</option>
+        <option value="relationships">Relationships</option>
+        <option value="validation">Validation</option>
+      </select>
+    </div>
+    <div class="inline">
+      <input id="use-llm" type="checkbox" checked>
+      <label for="use-llm">Use LLM when configured</label>
+    </div>
+    <div class="inline">
+      <input id="include-files" type="checkbox" checked>
+      <label for="include-files">Include OWL/OBDA drafts</label>
+    </div>
+    <div class="field">
+      <label for="business-context">Business Context</label>
+      <textarea id="business-context" placeholder="例如：这是商品中心，products 是商品主表，categories 是类目表，supplier_id 表示供应商。"></textarea>
+    </div>
+    <button id="generate" type="button">Generate Draft</button>
+    <p class="hint">需要管理员 API Key。结果只生成草稿，不写入生产 OWL/OBDA 文件。</p>
+  </aside>
+
+  <section class="content">
+    <div id="status" class="status">Ready</div>
+    <div id="empty" class="empty">No draft generated</div>
+    <div id="result" style="display:none;">
+      <div class="summary">
+        <div class="metric"><span>Tenant</span><strong id="metric-tenant">-</strong></div>
+        <div class="metric"><span>Mode</span><strong id="metric-mode">-</strong></div>
+        <div class="metric"><span>Draft Only</span><strong id="metric-draft">-</strong></div>
+        <div class="metric"><span>Applied</span><strong id="metric-applied">-</strong></div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" type="button" data-tab="review">Review</button>
+        <button class="tab" type="button" data-tab="warnings">Warnings</button>
+        <button class="tab" type="button" data-tab="metadata">Metadata</button>
+        <button class="tab" type="button" data-tab="owl">OWL</button>
+        <button class="tab" type="button" data-tab="obda">OBDA</button>
+      </div>
+
+      <div id="tab-review" class="tab-panel active">
+        <div class="toolbar"><button class="secondary copy" type="button" data-copy="review-body">Copy</button></div>
+        <div id="review-body" class="markdown"></div>
+      </div>
+      <div id="tab-warnings" class="tab-panel">
+        <div class="toolbar"><button class="secondary copy" type="button" data-copy="warnings-body">Copy</button></div>
+        <div id="warnings-body"></div>
+      </div>
+      <div id="tab-metadata" class="tab-panel">
+        <div class="toolbar"><button class="secondary copy" type="button" data-copy="metadata-body">Copy</button></div>
+        <pre id="metadata-body"></pre>
+      </div>
+      <div id="tab-owl" class="tab-panel">
+        <div class="toolbar"><button class="secondary copy" type="button" data-copy="owl-body">Copy</button></div>
+        <pre id="owl-body"></pre>
+      </div>
+      <div id="tab-obda" class="tab-panel">
+        <div class="toolbar"><button class="secondary copy" type="button" data-copy="obda-body">Copy</button></div>
+        <pre id="obda-body"></pre>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const API_BASE = '/api/v1';
+const KEY_STORAGE = 'mapping-assistant-api-key';
+
+function apiKey() {
+  return document.getElementById('api-key').value.trim();
+}
+
+function headers(json) {
+  const result = {};
+  if (apiKey()) result['X-API-Key'] = apiKey();
+  if (json) result['Content-Type'] = 'application/json';
+  return result;
+}
+
+function setStatus(message) {
+  document.getElementById('status').textContent = message;
+}
+
+async function fetchJSON(url, options = {}) {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    let message = response.statusText || ('HTTP ' + response.status);
+    try {
+      const body = await response.json();
+      message = body.message || body.error || message;
+    } catch (ignored) {
+      // Keep default message.
+    }
+    throw new Error(message);
+  }
+  return response.json();
+}
+
+async function loadTenants() {
+  localStorage.setItem(KEY_STORAGE, apiKey());
+  const select = document.getElementById('tenant');
+  select.innerHTML = '';
+  setStatus('Loading tenants...');
+  try {
+    const tenants = await fetchJSON(API_BASE + '/tenants', { headers: headers(false) });
+    tenants.forEach(t => {
+      const option = document.createElement('option');
+      option.value = t.id;
+      option.textContent = t.name || t.id;
+      select.appendChild(option);
+    });
+    setStatus(tenants.length ? 'Ready' : 'No tenants available');
+  } catch (e) {
+    setStatus('Failed to load tenants: ' + e.message);
+  }
+}
+
+async function generateDraft() {
+  const tenantId = document.getElementById('tenant').value;
+  if (!tenantId) {
+    setStatus('Select a tenant first');
+    return;
+  }
+  localStorage.setItem(KEY_STORAGE, apiKey());
+  document.getElementById('generate').disabled = true;
+  setStatus('Generating draft...');
+  try {
+    const payload = {
+      businessContext: document.getElementById('business-context').value,
+      focus: document.getElementById('focus').value,
+      includeDraftFiles: document.getElementById('include-files').checked,
+      useLlm: document.getElementById('use-llm').checked,
+      maxPromptChars: 14000
+    };
+    const result = await fetchJSON(
+      API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/mapping-assistant/draft',
+      { method: 'POST', headers: headers(true), body: JSON.stringify(payload) });
+    renderResult(result);
+    setStatus('Generated at ' + result.generatedAt);
+  } catch (e) {
+    setStatus('Failed to generate draft: ' + e.message);
+  } finally {
+    document.getElementById('generate').disabled = false;
+  }
+}
+
+function renderResult(data) {
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('result').style.display = 'block';
+  document.getElementById('metric-tenant').textContent = data.tenantName || data.tenantId;
+  document.getElementById('metric-mode').textContent = data.mode + (data.llmAvailable ? '' : ' (no LLM)');
+  document.getElementById('metric-draft').textContent = String(data.draftOnly);
+  document.getElementById('metric-applied').textContent = String(data.applied);
+  document.getElementById('review-body').innerHTML = markdownToHtml(data.reviewMarkdown || '');
+  document.getElementById('metadata-body').textContent = data.metadataSummary || '';
+  document.getElementById('owl-body').textContent = data.owlDraft || 'Not included';
+  document.getElementById('obda-body').textContent = data.obdaDraft || 'Not included';
+
+  const warnings = data.warnings || [];
+  const nextSteps = data.nextSteps || [];
+  document.getElementById('warnings-body').innerHTML =
+    '<h3 class="list">Warnings</h3>' + toList(warnings) +
+    '<h3 class="list">Next Steps</h3>' + toList(nextSteps);
+}
+
+function toList(items) {
+  if (!items.length) return '<p class="list">None</p>';
+  return '<ul class="list">' + items.map(item => '<li>' + escapeHtml(item) + '</li>').join('') + '</ul>';
+}
+
+function markdownToHtml(markdown) {
+  const escaped = escapeHtml(markdown);
+  return escaped
+    .replace(/^## (.*)$/gm, '<h2>$1</h2>')
+    .replace(/^- (.*)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+    .replace(/\n/g, '<br>');
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function selectTab(name) {
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.toggle('active', tab.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.id === 'tab-' + name));
+}
+
+async function copyElement(id) {
+  const element = document.getElementById(id);
+  const text = element.innerText || element.textContent || '';
+  await navigator.clipboard.writeText(text);
+  setStatus('Copied');
+}
+
+document.getElementById('api-key').value = localStorage.getItem(KEY_STORAGE) || '';
+document.getElementById('load-tenants').addEventListener('click', loadTenants);
+document.getElementById('generate').addEventListener('click', generateDraft);
+document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => selectTab(tab.dataset.tab)));
+document.querySelectorAll('.copy').forEach(button => button.addEventListener('click', () => copyElement(button.dataset.copy)));
+if (apiKey()) loadTenants();
+</script>
+</body>
+</html>

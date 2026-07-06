@@ -12,6 +12,9 @@ public class OwlGenerationProperties {
     private String columnToPropertyPrefix = "";
     private String outputDir = "generated-ontologies";
     private boolean enabled = true;
+    private String iriTemplate = "/{pk}";
+    private String joinTableBehavior = "object-only";
+    private String mappingStyle = "per-table";
 
     public String getNameCase() {
         return nameCase;
@@ -51,5 +54,29 @@ public class OwlGenerationProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public String getIriTemplate() {
+        return iriTemplate;
+    }
+
+    public void setIriTemplate(String iriTemplate) {
+        this.iriTemplate = iriTemplate;
+    }
+
+    public String getJoinTableBehavior() {
+        return joinTableBehavior;
+    }
+
+    public void setJoinTableBehavior(String joinTableBehavior) {
+        this.joinTableBehavior = joinTableBehavior;
+    }
+
+    public String getMappingStyle() {
+        return mappingStyle;
+    }
+
+    public void setMappingStyle(String mappingStyle) {
+        this.mappingStyle = mappingStyle;
     }
 }

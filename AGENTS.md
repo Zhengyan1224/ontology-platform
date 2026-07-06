@@ -5,7 +5,7 @@
 ```bash
 mvn spring-boot:run              # dev server on :8080
 mvn exec:java                    # alternative (exec-maven-plugin)
-mvn test                         # all tests (4 classes, H2 in-memory, no deps)
+mvn test                         # all tests (H2 in-memory, no external deps)
 ```
 
 **OTel Agent (optional):** For auto-instrumentation of HTTP, JDBC, and thread pool spans,
@@ -13,7 +13,7 @@ add `-javaagent:path/to/opentelemetry-javaagent.jar` to JVM args.
 Custom business spans via `@Observed` (SPARQL, NLQ, federated queries) work without the Agent.
 
 - Java 21 required
-- Default H2 in-memory DB — data lost on restart. SQL init: `src/main/resources/db/init-{books,university}.sql`
+- Default app DB is H2 file mode at `./data/ontology-platform` — platform data survives restart. Tests still use H2 in-memory. SQL init: `src/main/resources/db/init-*.sql`
 - Swagger UI: `http://localhost:8080/swagger-ui.html`
 - H2 Console: `http://localhost:8080/h2-console`
 

@@ -19,6 +19,11 @@ CREATE TABLE IF NOT EXISTS tb_dept_heads (
     dept_code VARCHAR(20) NOT NULL REFERENCES tb_departments(dept_code)
 );
 
+DELETE FROM tb_dept_heads;
+DELETE FROM tb_professors;
+DELETE FROM tb_employees;
+DELETE FROM tb_departments;
+
 -- Departments
 INSERT INTO tb_departments (dept_code, dept_name) VALUES ('CS', 'Computer Science');
 INSERT INTO tb_departments (dept_code, dept_name) VALUES ('MATH', 'Mathematics');

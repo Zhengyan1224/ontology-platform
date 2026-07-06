@@ -138,8 +138,15 @@
   - ✅ 依赖：`micrometer-tracing-bridge-otel`、`opentelemetry-exporter-otlp`、`spring-boot-starter-aop`
   - ✅ 配置：`management.tracing.sampling.probability` + OTLP endpoint
   - ✅ `@Observed` 注解：`SparqlController`、`NaturalLanguageQueryService`、`FederatedQueryService`、`CachedSparqlService`
-  - ✅ `TracingConfig`：`ObservedAspect` 注册，149 测试通过
+  - ✅ `TracingConfig`：`ObservedAspect` 注册，155 测试通过
   - ⏳ 手动验证 OTel Agent + 端点 (1 项)
+- [x] **5.6 OBDA 映射自动生成**
+  - ✅ `JdbcMetadataReader`：提取共享 JDBC metadata 读取（表、列、PK、FK）从 `OwlGeneratorService` 独立
+  - ✅ `NamingUtils`：共享命名工具类（`toClassName`、`singularize`、`toPropertyName`、`toIriTemplate`、`isJoinTable`）
+  - ✅ `ObdaGeneratorService`：基于 DB Schema 生成完整 OBDA 映射，per-table 风格（单映射块 = 类 + 所有属性 + FK）
+  - ✅ 配置化 IRI 模板（`iri-template: "/{pk}"` → `:book/{ID}`）、join table 控制（`object-only` / `skip`）、mapping 风格
+  - ✅ `POST /tenants/{id}/generate-mapping` 返回 ZIP 包（`.owl` + `.obda`），旧 `generate-owl` 端点标记 `@Deprecated`
+  - ✅ 6 个测试覆盖：基本映射、FK→对象属性、join table object-only、自定义 IRI 模板、空 DB、skip 行为
 
 ---
 
@@ -157,3 +164,4 @@
 | 2026-07-03 | Phase 5.2 联邦查询 RBAC 强化 | `TenantAccessEvaluator` + 按租户 API 作用域 + per-sub-query 超时 + 联邦查询指标 + 12 个新测试。归档为 `federated-query-rbac`。共 115 个测试通过。 |
 | 2026-07-03 | Polish & Tests 收尾 | 缓存指标 (5.1)、OWL 命名 (3.3/5.3)、34 个新测试：`RateLimitFilterTest`(4)、`JwtBlacklistRepositoryTest`(8)、`ApiKeyServiceTest`(10)、`JwtAuthFilterTest`(6)、+OwlGeneratorServiceTest 扩展(5)、+QueryCacheTest 扩展(1)。修复 `ApiKeyService.validateKey` 过期 key 返回 bug。共 **149 个测试，0 失败**。 |
 | 2026-07-03 | Phase 5.4 本体可视化仪表盘 + Phase 5.5 OTel 追踪 (代码完成) | 前端页面 `ontology-viz/index.html` + vis-network CDN + 安全白名单 (2/6 代码)。OTel 追踪：`pom.xml` 依赖、`application.yml` 配置、`@Observed` 注解覆盖 SPARQL/NLQ/联邦查询、`TracingConfig` + `ObservedAspect` 注册 (8/9 代码)。149 测试全部通过。待手动验证仪表盘渲染和 OTel 端点。 |
+| 2026-07-03 | Phase 5.6 OBDA 映射自动生成 | `JdbcMetadataReader` + `NamingUtils` + `ObdaGeneratorService`；per-table 映射风格、configurable IRI 模板、join table 控制（`object-only`/`skip`）。`POST /tenants/{id}/generate-mapping` ZIP 端点。6 个新测试（ObdaGeneratorServiceTest）。**155 测试，0 失败**。`generate-owl` 标记 `@Deprecated`。 |

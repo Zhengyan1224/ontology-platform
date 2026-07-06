@@ -24,8 +24,14 @@ public class JwtBlacklistRepository {
     }
 
     public void add(String jti, String subject, String reason, LocalDateTime expiredAt) {
+        if (exists(jti)) {
+            jdbcTemplate.update(
+                    "UPDATE jwt_blacklist SET token_subject = ?, reason = ?, expired_at = ?, created_at = ? WHERE jti = ?",
+                    subject, reason, Timestamp.valueOf(expiredAt), Timestamp.valueOf(LocalDateTime.now()), jti);
+            return;
+        }
         jdbcTemplate.update(
-                "MERGE INTO jwt_blacklist (jti, token_subject, reason, expired_at, created_at) KEY(jti) VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO jwt_blacklist (jti, token_subject, reason, expired_at, created_at) VALUES (?, ?, ?, ?, ?)",
                 jti, subject, reason, Timestamp.valueOf(expiredAt), Timestamp.valueOf(LocalDateTime.now()));
     }
 
@@ -42,8 +48,14 @@ public class JwtBlacklistRepository {
     }
 
     public void revokeAllForSubject(String subject, LocalDateTime expiredAt) {
+        if (exists("ALL")) {
+            jdbcTemplate.update(
+                    "UPDATE jwt_blacklist SET token_subject = ?, reason = ?, expired_at = ?, created_at = ? WHERE jti = 'ALL'",
+                    subject, "REVOKE_ALL", Timestamp.valueOf(expiredAt), Timestamp.valueOf(LocalDateTime.now()));
+            return;
+        }
         jdbcTemplate.update(
-                "MERGE INTO jwt_blacklist (jti, token_subject, reason, expired_at, created_at) KEY(jti) VALUES ('ALL', ?, ?, ?, ?)",
+                "INSERT INTO jwt_blacklist (jti, token_subject, reason, expired_at, created_at) VALUES ('ALL', ?, ?, ?, ?)",
                 subject, "REVOKE_ALL", Timestamp.valueOf(expiredAt), Timestamp.valueOf(LocalDateTime.now()));
     }
 

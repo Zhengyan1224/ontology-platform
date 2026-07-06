@@ -18,6 +18,7 @@ public class AuthProperties {
     private static final String DEFAULT_JWT_SECRET = "ontology-platform-jwt-secret-key-min-256-bits-long-for-hs256";
 
     private boolean enabled = true;
+    private boolean strictMode = false;
     private List<String> apiKeys = new ArrayList<>();
     private String adminPassword;
     private JwtConfig jwt = new JwtConfig();
@@ -44,6 +45,14 @@ public class AuthProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
+    }
+
+    public boolean isStrictMode() {
+        return strictMode;
+    }
+
+    public void setStrictMode(boolean strictMode) {
+        this.strictMode = strictMode;
     }
 
     public List<String> getApiKeys() {

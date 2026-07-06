@@ -58,3 +58,8 @@ mvnw.cmd
 
 # Ontop temp properties
 ontop-*.properties
+
+# Local H2 file databases
+data/
+*.mv.db
+*.trace.db

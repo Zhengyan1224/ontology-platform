@@ -16,7 +16,8 @@ public class OwlDebug {
         tenant.setJdbcDriver("org.h2.Driver");
         org.zhengyan.ontology.platform.service.OwlGeneratorService svc = 
             new org.zhengyan.ontology.platform.service.OwlGeneratorService(
-                new org.zhengyan.ontology.platform.config.OwlGenerationProperties());
+                new org.zhengyan.ontology.platform.config.OwlGenerationProperties(),
+                new org.zhengyan.ontology.platform.service.JdbcMetadataReader());
         String owl = svc.generateOwl(tenant);
         System.out.println(owl);
     }

@@ -36,6 +36,7 @@ public class OntologyVisualizationTest {
         assertTrue(result.containsKey("edges"));
         assertFalse(((List<?>) result.get("nodes")).isEmpty());
         assertFalse(((List<?>) result.get("edges")).isEmpty());
+        assertNoDanglingEdges(result);
     }
 
     @Test
@@ -74,5 +75,17 @@ public class OntologyVisualizationTest {
         Map<String, Object> second = service.getGraph("test");
 
         assertSame(first, second);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertNoDanglingEdges(Map<String, Object> result) {
+        List<Map<String, Object>> nodes = (List<Map<String, Object>>) result.get("nodes");
+        List<Map<String, Object>> edges = (List<Map<String, Object>>) result.get("edges");
+        List<Object> nodeIds = nodes.stream().map(node -> node.get("id")).toList();
+
+        for (Map<String, Object> edge : edges) {
+            assertTrue(nodeIds.contains(edge.get("source")), "Missing source node: " + edge);
+            assertTrue(nodeIds.contains(edge.get("target")), "Missing target node: " + edge);
+        }
     }
 }

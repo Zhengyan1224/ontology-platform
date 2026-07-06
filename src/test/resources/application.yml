@@ -21,6 +21,7 @@ management:
 ontology:
   auth:
     enabled: false
+    strict-mode: false
     api-keys:
       - admin-key-001
       - dev-key-002
@@ -37,6 +38,8 @@ ontology:
     query:
       max-size: 100
       ttl-seconds: 600
+  sparql:
+    max-results: 10000
   rate-limit:
     capacity: 20
     refill-tokens: 10

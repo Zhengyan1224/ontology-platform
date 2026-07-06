@@ -12,20 +12,26 @@ import org.zhengyan.ontology.platform.service.AuditService;
 import org.zhengyan.ontology.platform.service.CachedSparqlService;
 import org.zhengyan.ontology.platform.service.DynamicSchemaProvider;
 import org.zhengyan.ontology.platform.service.MetricsService;
+import org.zhengyan.ontology.platform.service.ObdaGeneratorService;
 import org.zhengyan.ontology.platform.service.OntologySchemaProvider;
 import org.zhengyan.ontology.platform.service.OntologyGraphService;
 import org.zhengyan.ontology.platform.service.OwlGeneratorService;
 import org.zhengyan.ontology.platform.service.QueryAuditLog;
 import org.zhengyan.ontology.platform.service.TenantConfigValidator;
 import org.zhengyan.ontology.platform.service.TenantPersistenceService;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -46,6 +52,7 @@ public class AdminController {
     private final AuditService auditService;
     private final CachedSparqlService cachedSparqlService;
     private final OwlGeneratorService owlGeneratorService;
+    private final ObdaGeneratorService obdaGeneratorService;
     private final OntologyGraphService ontologyGraphService;
     private final TenantPersistenceService tenantPersistenceService;
     private final TenantConfigValidator tenantConfigValidator;
@@ -60,6 +67,7 @@ public class AdminController {
                            CachedSparqlService cachedSparqlService,
                            OntologyGraphService ontologyGraphService,
                            OwlGeneratorService owlGeneratorService,
+                           ObdaGeneratorService obdaGeneratorService,
                            TenantPersistenceService tenantPersistenceService,
                            TenantConfigValidator tenantConfigValidator) {
         this.tenantConfig = tenantConfig;
@@ -71,6 +79,7 @@ public class AdminController {
         this.cachedSparqlService = cachedSparqlService;
         this.ontologyGraphService = ontologyGraphService;
         this.owlGeneratorService = owlGeneratorService;
+        this.obdaGeneratorService = obdaGeneratorService;
         this.tenantPersistenceService = tenantPersistenceService;
         this.tenantConfigValidator = tenantConfigValidator;
     }
@@ -214,6 +223,7 @@ public class AdminController {
         return ResponseEntity.ok(result);
     }
 
+    @Deprecated
     @PostMapping("/tenants/{tenantId}/generate-owl")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> generateOwl(@PathVariable String tenantId) {
@@ -230,6 +240,42 @@ public class AdminController {
         } catch (Exception e) {
             Map<String, Object> err = new LinkedHashMap<>();
             err.put(KEY_ERROR, "OWL_GENERATION_FAILED");
+            err.put(KEY_MESSAGE, e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
+        }
+    }
+
+    @PostMapping("/tenants/{tenantId}/generate-mapping")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> generateMapping(@PathVariable String tenantId) {
+        Tenant tenant = findTenant(tenantId);
+        if (tenant == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(KEY_ERROR, TENANT_NOT_FOUND));
+        }
+        try {
+            String owl = owlGeneratorService.generateOwl(tenant);
+            String obda = obdaGeneratorService.generateObda(tenant);
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+                ZipEntry owlEntry = new ZipEntry(tenantId + ".owl");
+                zos.putNextEntry(owlEntry);
+                zos.write(owl.getBytes());
+                zos.closeEntry();
+
+                ZipEntry obdaEntry = new ZipEntry(tenantId + ".obda");
+                zos.putNextEntry(obdaEntry);
+                zos.write(obda.getBytes());
+                zos.closeEntry();
+            }
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment", tenantId + "-mapping.zip");
+            return ResponseEntity.ok().headers(headers).body(baos.toByteArray());
+        } catch (Exception e) {
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put(KEY_ERROR, "MAPPING_GENERATION_FAILED");
             err.put(KEY_MESSAGE, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
         }

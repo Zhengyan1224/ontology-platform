@@ -59,8 +59,8 @@ public class QueryCacheTest {
         }
 
         @Bean
-        public CachedSparqlService cachedSparqlService(EngineRegistry er, FederatedQueryService fqs) {
-            return new CachedSparqlService(er, fqs);
+        public CachedSparqlService cachedSparqlService(EngineRegistry er, FederatedQueryService fqs, CacheManager cm) {
+            return new CachedSparqlService(er, fqs, cm, 10000);
         }
     }
 
@@ -88,7 +88,7 @@ public class QueryCacheTest {
         String query = "SELECT ?s WHERE {?s ?p ?o} cacheHit";
 
         given(engineRegistry.get("t-hit")).willReturn(engine);
-        given(engine.executeQuery(query)).willReturn(result);
+        given(engine.executeQuery(anyString())).willReturn(result);
         given(federatedQueryService.containsServiceClause(anyString())).willReturn(false);
 
         SparqlQueryResult r1 = cachedSparqlService.executeQuery("t-hit", query);
@@ -107,8 +107,7 @@ public class QueryCacheTest {
         SparqlQueryResult result2 = new SparqlQueryResult(List.of("s"), List.of(Map.of("s", "v2")), 1);
 
         given(engineRegistry.get("t-miss")).willReturn(engine);
-        given(engine.executeQuery("SELECT ?s WHERE {?s ?p ?o} cacheMiss1")).willReturn(result1);
-        given(engine.executeQuery("SELECT ?s WHERE {?s ?p ?o} cacheMiss2")).willReturn(result2);
+        given(engine.executeQuery(anyString())).willReturn(result1, result2);
         given(federatedQueryService.containsServiceClause(anyString())).willReturn(false);
 
         cachedSparqlService.executeQuery("t-miss", "SELECT ?s WHERE {?s ?p ?o} cacheMiss1");

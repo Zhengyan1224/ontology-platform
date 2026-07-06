@@ -37,7 +37,8 @@ public class SecurityConfig {
                 "/swagger-ui/",
                 "/v3/api-docs/",
                 "/h2-console/",
-                "/ontology-viz/"
+                "/ontology-viz/",
+                "/mapping-assistant/"
         ));
     }
 
@@ -71,7 +72,8 @@ public class SecurityConfig {
                     "/swagger-ui/**",
                     "/v3/api-docs/**",
                     "/h2-console/**",
-                    "/ontology-viz/**"
+                    "/ontology-viz/**",
+                    "/mapping-assistant/**"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

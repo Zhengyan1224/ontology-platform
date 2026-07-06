@@ -5,7 +5,7 @@ spring:
   application:
     name: ontology-platform
   datasource:
-    url: jdbc:h2:mem:books;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:file:./data/ontology-platform;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -39,6 +39,7 @@ ontology:
     enabled: true
   auth:
     enabled: true
+    strict-mode: false
     api-keys:
       - admin-key-001
       - dev-key-002
@@ -57,6 +58,8 @@ ontology:
     query:
       max-size: 100
       ttl-seconds: 600
+  sparql:
+    max-results: 10000
   rate-limit:
     capacity: 20
     refill-tokens: 10
@@ -70,6 +73,9 @@ ontology:
     name-case: PascalCase
     table-to-class-prefix: ""
     column-to-property-prefix: ""
+    iri-template: "/{pk}"
+    join-table-behavior: object-only
+    mapping-style: per-table
   viz:
     max-edge-limit: 1000
     cache-ttl-seconds: 300
@@ -88,7 +94,7 @@ ontology:
   tenants:
     - id: sample
       name: Sample Books Database
-      jdbc-url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      jdbc-url: jdbc:h2:file:./data/ontology-platform;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
       jdbc-driver: org.h2.Driver
       jdbc-username: sa
       jdbc-password:
@@ -97,7 +103,7 @@ ontology:
 
     - id: university
       name: University Reasoning Demo
-      jdbc-url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      jdbc-url: jdbc:h2:file:./data/ontology-platform;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
       jdbc-driver: org.h2.Driver
       jdbc-username: sa
       jdbc-password:

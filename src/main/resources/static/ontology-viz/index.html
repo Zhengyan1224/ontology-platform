@@ -7,19 +7,27 @@
 <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; height: 100vh; display: flex; flex-direction: column; }
-header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: #1a1a2e; color: #eee; flex-shrink: 0; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: #1a1a2e; color: #eee; flex-shrink: 0; flex-wrap: wrap; }
 header h1 { font-size: 18px; }
 header label { font-size: 14px; color: #aaa; }
-header select, header input { padding: 6px 10px; border: 1px solid #444; border-radius: 4px; background: #16213e; color: #eee; font-size: 14px; }
+header select, header input, header button { padding: 6px 10px; border: 1px solid #444; border-radius: 4px; background: #16213e; color: #eee; font-size: 14px; }
+header button { cursor: pointer; }
+header button:hover { border-color: #777; background: #20305c; }
 header input { flex: 1; max-width: 300px; }
 header select { min-width: 140px; }
-#graph-container { flex: 1; }
+#api-key-input { max-width: 220px; }
+#graph-container { flex: 1 1 auto; min-height: 0; width: 100%; position: relative; overflow: hidden; background: #fff; }
+.empty-state { padding: 40px; color: #666; }
 </style>
 </head>
 <body>
 <header>
   <h1>Ontology Graph</h1>
+  <label for="api-key-input">API Key:</label>
+  <input id="api-key-input" type="password" placeholder="X-API-Key" autocomplete="off">
+  <button id="reload-button" type="button">Refresh</button>
   <label for="tenant-select">Tenant:</label>
   <select id="tenant-select"></select>
   <label for="search-input">Search:</label>
@@ -29,30 +37,76 @@ header select { min-width: 140px; }
 
 <script>
 const API_BASE = '/api/v1';
+const API_KEY_STORAGE = 'ontology-viz-api-key';
 let network = null;
 let nodesDataSet = null;
 let edgesDataSet = null;
 let allNodeIds = [];
 
+function getApiKey() {
+  return document.getElementById('api-key-input').value.trim();
+}
+
+function authHeaders() {
+  const apiKey = getApiKey();
+  return apiKey ? { 'X-API-Key': apiKey } : {};
+}
+
+function showMessage(message) {
+  if (network) {
+    network.destroy();
+    network = null;
+  }
+  const container = document.getElementById('graph-container');
+  container.textContent = '';
+  const p = document.createElement('p');
+  p.className = 'empty-state';
+  p.textContent = message;
+  container.appendChild(p);
+}
+
 async function fetchJSON(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(res.statusText);
+  const res = await fetch(url, { headers: authHeaders() });
+  if (!res.ok) {
+    let message = res.statusText || ('HTTP ' + res.status);
+    try {
+      const body = await res.json();
+      message = body.message || body.error || message;
+    } catch (ignored) {
+      // Keep the HTTP status text when the response is not JSON.
+    }
+    throw new Error(message);
+  }
   return res.json();
 }
 
 async function loadTenants() {
-  const tenants = await fetchJSON(API_BASE + '/tenants');
   const select = document.getElementById('tenant-select');
   select.innerHTML = '';
-  tenants.forEach(t => {
-    const opt = document.createElement('option');
-    opt.value = t.id;
-    opt.textContent = t.name || t.id;
-    select.appendChild(opt);
-  });
-  if (tenants.length > 0) {
-    select.value = tenants[0].id;
-    loadGraph(tenants[0].id);
+  nodesDataSet = null;
+  edgesDataSet = null;
+
+  if (!getApiKey()) {
+    showMessage('API key required');
+    return;
+  }
+
+  try {
+    const tenants = await fetchJSON(API_BASE + '/tenants');
+    tenants.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.name || t.id;
+      select.appendChild(opt);
+    });
+    if (tenants.length > 0) {
+      select.value = tenants[0].id;
+      loadGraph(tenants[0].id);
+    } else {
+      showMessage('No tenants available');
+    }
+  } catch (e) {
+    showMessage('Failed to load tenants: ' + e.message);
   }
 }
 
@@ -61,30 +115,55 @@ async function loadGraph(tenantId) {
     const data = await fetchJSON(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/graph');
     renderGraph(data);
   } catch (e) {
-    document.getElementById('graph-container').innerHTML =
-      '<p style="padding:40px;color:#999;">Failed to load graph: ' + e.message + '</p>';
+    showMessage('Failed to load graph: ' + e.message);
   }
 }
 
 function renderGraph(data) {
-  const nodes = (data.nodes || []).map(n => ({
-    id: n.id,
-    label: n.name || n.id,
-    title: (n.type || '') + ': ' + (n.name || n.id),
-    group: n.type === 'class' ? 'class' : 'property',
-    shape: n.type === 'class' ? 'ellipse' : 'box',
-    color: n.type === 'class' ? { background: '#e3f2fd', border: '#1976d2' }
-                                : { background: '#fce4ec', border: '#c62828' }
-  }));
+  const nodeIds = new Set();
+  const nodes = [];
 
-  const edges = (data.edges || []).map(e => ({
-    from: e.source,
-    to: e.target,
-    label: e.label || '',
-    arrows: 'to',
-    font: { size: 11, color: '#666' },
-    color: { color: '#999', highlight: '#333' }
-  }));
+  function addNode(n, fallbackType) {
+    const id = n.id || n.name;
+    if (!id || nodeIds.has(id)) return;
+    nodeIds.add(id);
+    const type = n.type || fallbackType || 'property';
+    nodes.push({
+      id: id,
+      label: n.label || n.name || id,
+      title: (type || '') + ': ' + (n.label || n.name || id),
+      group: type,
+      shape: nodeShape(type),
+      color: nodeColor(type)
+    });
+  }
+
+  (data.nodes || []).forEach(n => addNode(n, 'property'));
+
+  (data.edges || []).forEach(e => {
+    if (e.source && !nodeIds.has(e.source)) {
+      addNode({ id: e.source, label: e.source, type: 'property' });
+    }
+    if (e.target && !nodeIds.has(e.target)) {
+      addNode({ id: e.target, label: e.target, type: e.propertyType === 'datatype' ? 'datatype' : 'property' });
+    }
+  });
+
+  if (nodes.length === 0) {
+    showMessage('No graph nodes available');
+    return;
+  }
+
+  const edges = (data.edges || [])
+    .filter(e => e.source && e.target && nodeIds.has(e.source) && nodeIds.has(e.target))
+    .map(e => ({
+      from: e.source,
+      to: e.target,
+      label: e.label || '',
+      arrows: 'to',
+      font: { size: 11, color: '#666' },
+      color: { color: '#999', highlight: '#333' }
+    }));
 
   allNodeIds = nodes.map(n => n.id);
 
@@ -92,8 +171,21 @@ function renderGraph(data) {
   edgesDataSet = new vis.DataSet(edges);
 
   const container = document.getElementById('graph-container');
+  container.textContent = '';
   const options = {
-    physics: { solver: 'forceAtlas2Based', stabilization: { iterations: 100 } },
+    autoResize: true,
+    width: '100%',
+    height: '100%',
+    physics: {
+      enabled: true,
+      solver: 'forceAtlas2Based',
+      stabilization: { enabled: true, iterations: 150, fit: true },
+      forceAtlas2Based: {
+        gravitationalConstant: -60,
+        springLength: 140,
+        springConstant: 0.06
+      }
+    },
     interaction: { hover: true, tooltipDelay: 200 },
     layout: { improvedLayout: true },
     edges: { smooth: { type: 'continuous' } }
@@ -101,6 +193,29 @@ function renderGraph(data) {
 
   if (network) network.destroy();
   network = new vis.Network(container, { nodes: nodesDataSet, edges: edgesDataSet }, options);
+  network.once('stabilizationIterationsDone', () => {
+    network.setOptions({ physics: false });
+    network.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+  });
+  setTimeout(() => {
+    if (network) network.fit();
+  }, 100);
+}
+
+function nodeShape(type) {
+  if (type === 'class') return 'ellipse';
+  if (type === 'datatype') return 'box';
+  return 'diamond';
+}
+
+function nodeColor(type) {
+  if (type === 'class') {
+    return { background: '#e3f2fd', border: '#1976d2' };
+  }
+  if (type === 'datatype') {
+    return { background: '#e8f5e9', border: '#2e7d32' };
+  }
+  return { background: '#fce4ec', border: '#c62828' };
 }
 
 function applySearch(query) {
@@ -124,6 +239,25 @@ document.getElementById('search-input').addEventListener('input', e => {
   applySearch(e.target.value);
 });
 
+document.getElementById('api-key-input').addEventListener('change', e => {
+  localStorage.setItem(API_KEY_STORAGE, e.target.value.trim());
+  loadTenants();
+});
+
+document.getElementById('api-key-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    localStorage.setItem(API_KEY_STORAGE, e.target.value.trim());
+    loadTenants();
+  }
+});
+
+document.getElementById('reload-button').addEventListener('click', () => {
+  localStorage.setItem(API_KEY_STORAGE, getApiKey());
+  loadTenants();
+});
+
+document.getElementById('api-key-input').value = localStorage.getItem(API_KEY_STORAGE) || '';
 loadTenants();
 </script>
 </body>

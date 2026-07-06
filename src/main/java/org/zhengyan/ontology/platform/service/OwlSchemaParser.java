@@ -27,6 +27,7 @@ public class OwlSchemaParser {
             OWLOntologyManager manager = OWLManager.createOWLOntologyManager();
             OWLOntology ontology = manager.loadOntologyFromOntologyDocument(owlFile);
             IRI ontologyIri = ontology.getOntologyID().getOntologyIRI().orElse(null);
+            Map<String, Map<String, Object>> propertiesByIri = new LinkedHashMap<>();
 
             for (OWLClass cls : ontology.getClassesInSignature()) {
                 String iri = cls.getIRI().toString();
@@ -34,6 +35,9 @@ public class OwlSchemaParser {
             }
 
             for (OWLSubClassOfAxiom axiom : ontology.getAxioms(AxiomType.SUBCLASS_OF)) {
+                if (axiom.getSubClass().isAnonymous() || axiom.getSuperClass().isAnonymous()) {
+                    continue;
+                }
                 String child = axiom.getSubClass().asOWLClass().getIRI().toString();
                 String parent = axiom.getSuperClass().asOWLClass().getIRI().toString();
                 schema.classHierarchy.add(Map.of("child", child, "parent", parent));
@@ -42,6 +46,9 @@ public class OwlSchemaParser {
             for (OWLSubPropertyAxiom<?> axiom : ontology.getAxioms(AxiomType.SUB_OBJECT_PROPERTY)) {
                 OWLObjectPropertyExpression sub = (OWLObjectPropertyExpression) axiom.getSubProperty();
                 OWLObjectPropertyExpression sup = (OWLObjectPropertyExpression) axiom.getSuperProperty();
+                if (sub.isAnonymous() || sup.isAnonymous()) {
+                    continue;
+                }
                 schema.subPropertyOf.add(Map.of(
                         "child", sub.asOWLObjectProperty().getIRI().toString(),
                         "parent", sup.asOWLObjectProperty().getIRI().toString()));
@@ -54,6 +61,7 @@ public class OwlSchemaParser {
                 p.put("name", toLocalName(iri, ontologyIri));
                 p.put("type", "object");
                 schema.properties.add(p);
+                propertiesByIri.put(iri, p);
             }
 
             for (OWLDataProperty prop : ontology.getDataPropertiesInSignature()) {
@@ -63,6 +71,47 @@ public class OwlSchemaParser {
                 p.put("name", toLocalName(iri, ontologyIri));
                 p.put("type", "datatype");
                 schema.properties.add(p);
+                propertiesByIri.put(iri, p);
+            }
+
+            for (OWLObjectPropertyDomainAxiom axiom : ontology.getAxioms(AxiomType.OBJECT_PROPERTY_DOMAIN)) {
+                OWLObjectPropertyExpression property = axiom.getProperty();
+                if (property.isAnonymous() || axiom.getDomain().isAnonymous()) {
+                    continue;
+                }
+                String iri = property.asOWLObjectProperty().getIRI().toString();
+                Map<String, Object> p = getOrCreateProperty(schema, propertiesByIri, iri, ontologyIri, "object");
+                p.put("domain", axiom.getDomain().asOWLClass().getIRI().toString());
+            }
+
+            for (OWLObjectPropertyRangeAxiom axiom : ontology.getAxioms(AxiomType.OBJECT_PROPERTY_RANGE)) {
+                OWLObjectPropertyExpression property = axiom.getProperty();
+                if (property.isAnonymous() || axiom.getRange().isAnonymous()) {
+                    continue;
+                }
+                String iri = property.asOWLObjectProperty().getIRI().toString();
+                Map<String, Object> p = getOrCreateProperty(schema, propertiesByIri, iri, ontologyIri, "object");
+                p.put("range", axiom.getRange().asOWLClass().getIRI().toString());
+            }
+
+            for (OWLDataPropertyDomainAxiom axiom : ontology.getAxioms(AxiomType.DATA_PROPERTY_DOMAIN)) {
+                OWLDataPropertyExpression property = axiom.getProperty();
+                if (property.isAnonymous() || axiom.getDomain().isAnonymous()) {
+                    continue;
+                }
+                String iri = property.asOWLDataProperty().getIRI().toString();
+                Map<String, Object> p = getOrCreateProperty(schema, propertiesByIri, iri, ontologyIri, "datatype");
+                p.put("domain", axiom.getDomain().asOWLClass().getIRI().toString());
+            }
+
+            for (OWLDataPropertyRangeAxiom axiom : ontology.getAxioms(AxiomType.DATA_PROPERTY_RANGE)) {
+                OWLDataPropertyExpression property = axiom.getProperty();
+                if (property.isAnonymous()) {
+                    continue;
+                }
+                String iri = property.asOWLDataProperty().getIRI().toString();
+                Map<String, Object> p = getOrCreateProperty(schema, propertiesByIri, iri, ontologyIri, "datatype");
+                p.put("range", dataRangeToIri(axiom.getRange()));
             }
 
             manager.removeOntology(ontology);
@@ -92,6 +141,32 @@ public class OwlSchemaParser {
         }
         local = local.replaceAll("^[/#]+", "");
         return local;
+    }
+
+    private Map<String, Object> getOrCreateProperty(OwlSchema schema,
+                                                    Map<String, Map<String, Object>> propertiesByIri,
+                                                    String iri,
+                                                    IRI ontologyIri,
+                                                    String type) {
+        Map<String, Object> existing = propertiesByIri.get(iri);
+        if (existing != null) {
+            return existing;
+        }
+
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put("iri", iri);
+        p.put("name", toLocalName(iri, ontologyIri));
+        p.put("type", type);
+        schema.properties.add(p);
+        propertiesByIri.put(iri, p);
+        return p;
+    }
+
+    private String dataRangeToIri(OWLDataRange range) {
+        if (range instanceof OWLDatatype datatype) {
+            return datatype.getIRI().toString();
+        }
+        return range.toString();
     }
 
     public static class OwlSchema {
