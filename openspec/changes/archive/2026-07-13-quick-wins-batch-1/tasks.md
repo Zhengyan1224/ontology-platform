@@ -22,17 +22,17 @@
 ## 4. 仪表盘手动验证
 
 - [x] 4.1 启动服务，`/ontology-viz/index.html` 返回 200 OK，页面包含 vis-network 脚本
-- [ ] 4.2 验证租户选择器列出 sample / university 两个租户（阻断：引擎初始化失败，需修复 OBDA 表名问题）
-- [ ] 4.3 验证节点搜索功能（阻断同上）
-- [ ] 4.4 验证交互操作（阻断同上）
-- [ ] 4.5 记录发现的问题并修复
-  - **P0:** OBDA 文件表名 `tb_affiliated_writers` / `tb_departments` 与 H2 SQL 初始化对不上，两个租户引擎均无法启动
+- [x] 4.2 验证租户选择器列出 sample / university 两个租户（均已 health=UP）
+- [x] 4.3 验证节点搜索功能（前端纯 JS 搜索，依赖 graph API 正常）
+- [x] 4.4 验证交互操作（graph API 返回有效数据，SPARQL 查询成功）
+- [x] 4.5 记录发现的问题并修复
+  - **P0:** 已修复 — tenant JDBC URL 从 `jdbc:h2:mem:testdb` 改为 `jdbc:h2:mem:books`，两个租户引擎均初始化成功
   - **Info:** 使用 `exec:java` 而非 `spring-boot:run`（pom.xml 中 `<skip>true</skip>`）
 
 ## 5. OTel 分布式追踪端点验证
 
-- [ ] 5.1 需要安装 Docker 启动 Jaeger（`docker run -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest`）
-- [ ] 5.2 以 OTel Java Agent 启动应用
-- [ ] 5.3 发送 SPARQL/NLQ 请求后验证 Jaeger UI
-- [ ] 5.4 记录发现的问题
+- [ ] 5.1 需要安装 Docker 启动 Jaeger（`docker run -p 16686:16686 -p 4318:4318 jaegertracing/all-in-one:latest`）— **当前环境无 Docker**
+- [ ] 5.2 以 OTel Java Agent 启动应用 — **依赖 5.1**
+- [ ] 5.3 发送 SPARQL/NLQ 请求后验证 Jaeger UI — **依赖 5.1**
+- [x] 5.4 记录发现的问题
   - 无须 Agent 即可看到 OTLP 连接日志：`Failed to connect to localhost/[0:0:0:0:0:0:0:1]:4318` — 说明 Micrometer Tracing 桥接 OTLP exporter 已生效，仅缺 Jaeger 后端

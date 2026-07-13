@@ -9,6 +9,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.zhengyan.ontology.platform.config.OwlGenerationProperties;
 import org.zhengyan.ontology.platform.config.TenantConfig;
 import org.zhengyan.ontology.platform.exception.OntologyPlatformException;
 import org.zhengyan.ontology.platform.model.Tenant;
@@ -19,8 +22,10 @@ import java.sql.JDBCType;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -38,6 +43,7 @@ public class MappingAssistantService {
     private final OwlGeneratorService owlGeneratorService;
     private final ObdaGeneratorService obdaGeneratorService;
     private final JdbcMetadataReader metadataReader;
+    private final OwlGenerationProperties namingProperties;
     private final ChatLanguageModel llm;
     private final boolean llmAvailable;
 
@@ -47,6 +53,7 @@ public class MappingAssistantService {
             OwlGeneratorService owlGeneratorService,
             ObdaGeneratorService obdaGeneratorService,
             JdbcMetadataReader metadataReader,
+            OwlGenerationProperties namingProperties,
             @Value("${ontology.nlq.llm.api-key:}") String apiKey,
             @Value("${ontology.nlq.llm.model:gpt-4o-mini}") String model,
             @Value("${ontology.nlq.llm.base-url:}") String baseUrl) {
@@ -55,6 +62,7 @@ public class MappingAssistantService {
         this.owlGeneratorService = owlGeneratorService;
         this.obdaGeneratorService = obdaGeneratorService;
         this.metadataReader = metadataReader;
+        this.namingProperties = namingProperties;
 
         if (apiKey != null && !apiKey.isBlank() && !"sk-placeholder".equals(apiKey)) {
             var builder = OpenAiChatModel.builder()
@@ -110,6 +118,7 @@ public class MappingAssistantService {
             }
 
             boolean includeDraftFiles = resolvedRequest.includeDraftFilesOrDefault();
+            EditableConfig editableConfig = buildEditableConfig(metadata, tenant, reviewMarkdown);
             return new DraftResponse(
                     tenant.getId(),
                     tenant.getName(),
@@ -123,7 +132,8 @@ public class MappingAssistantService {
                     nextSteps,
                     includeDraftFiles ? owlDraft : null,
                     includeDraftFiles ? obdaDraft : null,
-                    Instant.now().toString());
+                    Instant.now().toString(),
+                    editableConfig);
         } catch (OntologyPlatformException e) {
             throw e;
         } catch (Exception e) {
@@ -272,6 +282,26 @@ public class MappingAssistantService {
                 3. 敏感字段与权限风险
                 4. 需要人工确认的问题
                 5. 上线前验证步骤
+
+                After the markdown review, include a JSON code block with your structured naming suggestions.
+                The JSON must follow this exact schema inside a ```json code block:
+
+                ```json
+                {
+                  "suggestions": {
+                    "TABLE_NAME": {
+                      "className": "SuggestedClassName",
+                      "columns": {
+                        "COLUMN_NAME": { "propertyName": "suggestedPropertyName" }
+                      }
+                    }
+                  },
+                  "relationships": [
+                    { "fkTable": "TABLE", "fkColumn": "COL", "pkTable": "PK_TABLE", "objectPropertyName": "propName" }
+                  ],
+                  "hideColumns": ["TABLE.COLUMN"]
+                }
+                ```
                 """);
         return clip(prompt.toString(), limit);
     }
@@ -348,6 +378,29 @@ public class MappingAssistantService {
         }
     }
 
+    public DraftResponse applyConfig(String tenantId, EditableConfig config) {
+        Tenant tenant = findTenant(tenantId);
+        if (tenant == null) {
+            throw OntologyPlatformException.tenantNotFound(tenantId);
+        }
+
+        Map<String, org.zhengyan.ontology.platform.config.OwlGenerationProperties.TableOverride> overrides = new HashMap<>();
+        for (EditableTableConfig table : config.tables()) {
+            Map<String, org.zhengyan.ontology.platform.config.OwlGenerationProperties.ColumnOverride> colOverrides = new HashMap<>();
+            for (EditableColumnConfig col : table.columns()) {
+                colOverrides.put(col.columnName(),
+                        new org.zhengyan.ontology.platform.config.OwlGenerationProperties.ColumnOverride(
+                                col.propertyName(), col.expose()));
+            }
+            overrides.put(table.tableName(),
+                    new org.zhengyan.ontology.platform.config.OwlGenerationProperties.TableOverride(
+                            table.className(), table.expose(), colOverrides));
+        }
+        namingProperties.setTableOverrides(overrides);
+
+        return createDraft(tenantId, new DraftRequest(null, null, true, false, DEFAULT_PROMPT_LIMIT));
+    }
+
     private String clip(String value, int maxChars) {
         if (value == null || value.length() <= maxChars) {
             return value;
@@ -355,8 +408,150 @@ public class MappingAssistantService {
         return value.substring(0, Math.max(0, maxChars)) + "\n...[truncated]";
     }
 
+    private EditableConfig buildEditableConfig(MetadataSnapshot metadata, Tenant tenant, String reviewMarkdown) {
+        List<EditableTableConfig> tableConfigs = new ArrayList<>();
+        List<EditableRelationship> relationships = new ArrayList<>();
+        Map<String, Map<String, String>> llmClassSuggestions = new HashMap<>();
+        Map<String, Map<String, String>> llmColumnSuggestions = new HashMap<>();
+        List<Map<String, String>> llmRelationshipSuggestions = new ArrayList<>();
+
+        parseLlmSuggestions(reviewMarkdown, llmClassSuggestions, llmColumnSuggestions, llmRelationshipSuggestions);
+
+        for (JdbcMetadataReader.TableInfo table : metadata.tables()) {
+            org.zhengyan.ontology.platform.config.OwlGenerationProperties.TableOverride tableOverride =
+                    namingProperties.getTableOverrides().get(table.name);
+            boolean tableExpose = tableOverride != null ? tableOverride.expose() : true;
+            String className = tableOverride != null && tableOverride.className() != null && !tableOverride.className().isBlank()
+                    ? tableOverride.className()
+                    : NamingUtils.toClassName(table.name, namingProperties);
+            String suggestedClassName = llmClassSuggestions.getOrDefault(table.name, Map.of())
+                    .getOrDefault("className", className);
+            String iriTemplateVal = namingProperties.getIriTemplate();
+
+            List<EditableColumnConfig> columnConfigs = new ArrayList<>();
+            for (JdbcMetadataReader.ColumnInfo col : table.columns) {
+                org.zhengyan.ontology.platform.config.OwlGenerationProperties.ColumnOverride colOverride =
+                        tableOverride != null ? tableOverride.columnOverrides().get(col.name) : null;
+                boolean colExpose = colOverride != null ? colOverride.expose() : true;
+                String propName = colOverride != null && colOverride.propertyName() != null && !colOverride.propertyName().isBlank()
+                        ? colOverride.propertyName()
+                        : NamingUtils.toPropertyName(col.name, table.name, namingProperties);
+                String key = table.name + "." + col.name;
+                String suggestedPropName = llmColumnSuggestions.getOrDefault(table.name, Map.of())
+                        .getOrDefault(col.name, propName);
+                boolean isPk = metadata.primaryKeys().contains(key);
+                columnConfigs.add(new EditableColumnConfig(
+                        col.name, propName, suggestedPropName, isPk,
+                        col.fkTargetTable != null, colExpose));
+            }
+
+            tableConfigs.add(new EditableTableConfig(
+                    table.name, className, suggestedClassName, iriTemplateVal, tableExpose, columnConfigs));
+        }
+
+        for (Map<String, String> rel : llmRelationshipSuggestions) {
+            String fkTable = rel.get("fkTable");
+            String fkColumn = rel.get("fkColumn");
+            String pkTable = rel.get("pkTable");
+            String objPropName = rel.getOrDefault("objectPropertyName", fkColumn);
+            String suggested = rel.getOrDefault("objectPropertyNameSuggested", objPropName);
+            if (fkTable != null && fkColumn != null) {
+                relationships.add(new EditableRelationship(
+                        fkTable, fkColumn, pkTable, objPropName, suggested, true));
+            }
+        }
+
+        return new EditableConfig(tableConfigs, relationships);
+    }
+
+    private void parseLlmSuggestions(String reviewMarkdown,
+                                     Map<String, Map<String, String>> classSuggestions,
+                                     Map<String, Map<String, String>> columnSuggestions,
+                                     List<Map<String, String>> relationshipSuggestions) {
+        if (reviewMarkdown == null || reviewMarkdown.isEmpty()) return;
+        int jsonStart = reviewMarkdown.indexOf("```json");
+        if (jsonStart < 0) return;
+        int codeBlockStart = jsonStart + 7;
+        int codeBlockEnd = reviewMarkdown.indexOf("```", codeBlockStart);
+        if (codeBlockEnd < 0) return;
+        String jsonStr = reviewMarkdown.substring(codeBlockStart, codeBlockEnd).trim();
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(jsonStr);
+            JsonNode suggestionsNode = root.get("suggestions");
+            if (suggestionsNode != null && suggestionsNode.isObject()) {
+                suggestionsNode.fieldNames().forEachRemaining(tableName -> {
+                    JsonNode tableNode = suggestionsNode.get(tableName);
+                    if (tableNode == null) return;
+                    Map<String, String> classMap = new HashMap<>();
+                    if (tableNode.has("className")) {
+                        classMap.put("className", tableNode.get("className").asText());
+                    }
+                    classSuggestions.put(tableName, classMap);
+                    JsonNode cols = tableNode.get("columns");
+                    if (cols != null && cols.isObject()) {
+                        Map<String, String> colMap = new HashMap<>();
+                        cols.fieldNames().forEachRemaining(colName -> {
+                            JsonNode colNode = cols.get(colName);
+                            if (colNode != null && colNode.has("propertyName")) {
+                                colMap.put(colName, colNode.get("propertyName").asText());
+                            }
+                        });
+                        columnSuggestions.put(tableName, colMap);
+                    }
+                });
+            }
+            JsonNode rels = root.get("relationships");
+            if (rels != null && rels.isArray()) {
+                for (JsonNode rel : rels) {
+                    Map<String, String> relMap = new HashMap<>();
+                    if (rel.has("fkTable")) relMap.put("fkTable", rel.get("fkTable").asText());
+                    if (rel.has("fkColumn")) relMap.put("fkColumn", rel.get("fkColumn").asText());
+                    if (rel.has("pkTable")) relMap.put("pkTable", rel.get("pkTable").asText());
+                    if (rel.has("objectPropertyName")) relMap.put("objectPropertyName", rel.get("objectPropertyName").asText());
+                    if (rel.has("objectPropertyNameSuggested")) relMap.put("objectPropertyNameSuggested", rel.get("objectPropertyNameSuggested").asText());
+                    relationshipSuggestions.add(relMap);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Failed to parse LLM suggestions JSON, falling back to rule-only: {}", e.getMessage());
+        }
+    }
+
     private record MetadataSnapshot(List<JdbcMetadataReader.TableInfo> tables, Set<String> primaryKeys) {
     }
+
+    public record EditableColumnConfig(
+            String columnName,
+            String propertyName,
+            String propertyNameSuggested,
+            boolean isPk,
+            boolean isFk,
+            boolean expose
+    ) {}
+
+    public record EditableTableConfig(
+            String tableName,
+            String className,
+            String classNameSuggested,
+            String iriTemplate,
+            boolean expose,
+            List<EditableColumnConfig> columns
+    ) {}
+
+    public record EditableRelationship(
+            String fkTable,
+            String fkColumn,
+            String pkTable,
+            String objectPropertyName,
+            String objectPropertyNameSuggested,
+            boolean expose
+    ) {}
+
+    public record EditableConfig(
+            List<EditableTableConfig> tables,
+            List<EditableRelationship> relationships
+    ) {}
 
     public record DraftRequest(String businessContext,
                                String focus,
@@ -399,6 +594,7 @@ public class MappingAssistantService {
                                 List<String> nextSteps,
                                 String owlDraft,
                                 String obdaDraft,
-                                String generatedAt) {
+                                String generatedAt,
+                                EditableConfig editableConfig) {
     }
 }

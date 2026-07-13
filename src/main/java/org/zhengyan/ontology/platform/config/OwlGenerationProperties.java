@@ -3,9 +3,16 @@ package org.zhengyan.ontology.platform.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Component
 @ConfigurationProperties(prefix = "ontology.owl-generation")
 public class OwlGenerationProperties {
+
+    public record ColumnOverride(String propertyName, boolean expose) {}
+
+    public record TableOverride(String className, boolean expose, Map<String, ColumnOverride> columnOverrides) {}
 
     private String nameCase = "PascalCase";
     private String tableToClassPrefix = "";
@@ -15,6 +22,7 @@ public class OwlGenerationProperties {
     private String iriTemplate = "/{pk}";
     private String joinTableBehavior = "object-only";
     private String mappingStyle = "per-table";
+    private Map<String, TableOverride> tableOverrides = new HashMap<>();
 
     public String getNameCase() {
         return nameCase;
@@ -78,5 +86,13 @@ public class OwlGenerationProperties {
 
     public void setMappingStyle(String mappingStyle) {
         this.mappingStyle = mappingStyle;
+    }
+
+    public Map<String, TableOverride> getTableOverrides() {
+        return tableOverrides;
+    }
+
+    public void setTableOverrides(Map<String, TableOverride> tableOverrides) {
+        this.tableOverrides = tableOverrides != null ? tableOverrides : new HashMap<>();
     }
 }

@@ -20,6 +20,7 @@ The system SHALL provide an endpoint that returns the ontology structure as a gr
   - `rdfs:subPropertyOf` relationships
   - Property domain/range connections
 - The response SHALL be suitable for rendering with D3.js force-directed graph or vis.js
+- The UI SHALL support clicking a node to open an edit panel for its mapping configuration
 
 #### Scenario: Graph endpoint returns ontology structure
 - **WHEN** a GET request is sent to `/api/v1/tenants/{tenantId}/graph`
@@ -38,6 +39,10 @@ The ontology graph data SHALL be cached to avoid re-parsing on every request.
 - The graph data SHALL be cached in memory per tenant
 - Cache SHALL be invalidated when the tenant is reinitialized
 - Cache TTL SHALL be configurable via `ontology.viz.cache-ttl` (default 600 seconds)
+
+#### Scenario: Graph node click opens edit panel
+- **WHEN** a user clicks a node in the vis-network visualization
+- **THEN** the UI SHALL display an edit panel with the node's current mapping properties
 
 #### Scenario: Subsequent graph requests use cache
 - **WHEN** a graph request is made for a previously queried tenant

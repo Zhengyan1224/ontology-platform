@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NLQ Query</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #202636; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: #182033; color: #f5f7fb; position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0; }
+header a { color: #c8d0dc; text-decoration: none; font-size: 14px; }
+header a:hover { color: #fff; }
+header label { font-size: 13px; color: #c8d0dc; }
+header input, header select { padding: 6px 10px; border: 1px solid #44506a; border-radius: 4px; background: #111a2d; color: #f5f7fb; font-size: 14px; }
+header button { padding: 6px 12px; border: 1px solid #2868d8; border-radius: 4px; background: #2868d8; color: #fff; cursor: pointer; }
+button { font: inherit; cursor: pointer; }
+main { display: grid; grid-template-columns: 1fr 1fr; gap: 0; min-height: calc(100vh - 56px); }
+.left { padding: 18px; background: #fff; border-right: 1px solid #dce3ee; }
+.right { padding: 18px; min-width: 0; }
+.input-area { margin-bottom: 16px; }
+.input-area textarea { width: 100%; min-height: 60px; padding: 10px; border: 1px solid #c8d1df; border-radius: 6px; font: inherit; resize: vertical; }
+.input-area .row { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.input-area button { padding: 8px 16px; background: #2868d8; color: #fff; border: 0; border-radius: 6px; }
+.input-area label.toggle { font-size: 13px; color: #637083; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.status { color: #536174; font-size: 13px; margin-bottom: 8px; }
+.conversation { display: flex; flex-direction: column; gap: 12px; }
+.entry { border: 1px solid #dce3ee; border-radius: 8px; overflow: hidden; }
+.entry-header { padding: 8px 12px; font-weight: 600; font-size: 13px; background: #f0f3f8; border-bottom: 1px solid #dce3ee; display: flex; justify-content: space-between; align-items: center; }
+.entry-header .actions { display: flex; gap: 4px; }
+.entry-header .actions button { padding: 2px 6px; font-size: 11px; border-radius: 3px; background: #fff; border: 1px solid #c8d1df; color: #42526a; }
+.entry-body { padding: 10px 12px; }
+.entry-body .sparql { background: #f8f9fc; border: 1px solid #e4e8f0; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 12px; white-space: pre-wrap; margin: 6px 0; }
+.entry-body table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+.entry-body th, .entry-body td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #edf1f6; }
+.entry-body th { font-weight: 600; color: #42526a; background: #f8fafc; }
+.mode-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; background: #e3f2fd; color: #1565c0; }
+.streaming-badge { background: #fff3e0; color: #e65100; }
+.session-info { font-size: 12px; color: #637083; margin-top: 8px; padding: 8px; background: #f0f3f8; border-radius: 4px; }
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; }
+  .left { border-right: 0; border-bottom: 1px solid #dce3ee; }
+}
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&#8592; Home</a>
+  <h1>Natural Language Query</h1>
+  <input id="api-key" type="password" placeholder="API Key" autocomplete="off" style="width:140px;">
+  <select id="tenant"></select>
+  <button id="new-session" type="button" style="background:transparent;border-color:#44506a;color:#f5f7fb;">New Session</button>
+  <a href="../saved-queries/" style="margin-left:auto;font-size:13px;">Saved Queries</a>
+</header>
+<main>
+  <div class="left">
+    <div class="input-area">
+      <textarea id="question" placeholder="Ask a question in natural language..." rows="3"></textarea>
+      <div class="row">
+        <button id="ask-btn">Ask</button>
+        <label class="toggle"><input id="use-sse" type="checkbox"> Stream (SSE)</label>
+        <span class="status" id="status">Ready</span>
+      </div>
+    </div>
+    <div class="session-info" id="session-info">No active session</div>
+  </div>
+  <div class="right">
+    <div class="conversation" id="conversation"></div>
+  </div>
+</main>
+
+<script>
+const API_BASE = '/api/v1';
+const KEY_STORAGE = 'nlq-api-key';
+const SESSION_STORAGE = 'nlq-session-id';
+
+let sessionId = sessionStorage.getItem(SESSION_STORAGE) || null;
+let conversationCount = 0;
+
+function getApiKey() { return document.getElementById('api-key').value.trim(); }
+function authHeaders() {
+  const h = {};
+  if (getApiKey()) h['X-API-Key'] = getApiKey();
+  if (sessionId) h['X-Session-Id'] = sessionId;
+  return h;
+}
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+async function fetchJSON(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) { let m = res.statusText; try { const b = await res.json(); m = b.message || b.error || m; } catch {} throw new Error(m); }
+  return res.json();
+}
+
+document.getElementById('api-key').value = localStorage.getItem(KEY_STORAGE) || '';
+document.getElementById('api-key').addEventListener('change', function () {
+  localStorage.setItem(KEY_STORAGE, this.value.trim());
+  loadTenants();
+});
+
+async function loadTenants() {
+  const select = document.getElementById('tenant');
+  select.innerHTML = '';
+  if (!getApiKey()) { setStatus('API key required'); return; }
+  try {
+    const tenants = await fetchJSON(API_BASE + '/tenants', { headers: authHeaders() });
+    tenants.forEach(t => { const opt = document.createElement('option'); opt.value = t.id; opt.textContent = t.name || t.id; select.appendChild(opt); });
+    setStatus(tenants.length ? 'Ready' : 'No tenants');
+  } catch (e) { setStatus('Error: ' + e.message); }
+}
+
+document.getElementById('new-session').addEventListener('click', () => {
+  sessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  sessionStorage.setItem(SESSION_STORAGE, sessionId);
+  conversationCount = 0;
+  document.getElementById('conversation').innerHTML = '';
+  document.getElementById('session-info').textContent = 'Session: ' + sessionId.slice(0, 8) + '...';
+  setStatus('New session started');
+});
+
+document.getElementById('ask-btn').addEventListener('click', askQuestion);
+document.getElementById('question').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askQuestion(); }
+});
+
+async function askQuestion() {
+  const question = document.getElementById('question').value.trim();
+  if (!question) { setStatus('Enter a question'); return; }
+  const tenantId = document.getElementById('tenant').value;
+  if (!tenantId) { setStatus('Select a tenant'); return; }
+
+  if (!sessionId) {
+    sessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+    sessionStorage.setItem(SESSION_STORAGE, sessionId);
+    document.getElementById('session-info').textContent = 'Session: ' + sessionId.slice(0, 8) + '...';
+  }
+
+  const useSse = document.getElementById('use-sse').checked;
+  document.getElementById('ask-btn').disabled = true;
+
+  if (useSse) {
+    await askQuestionSSE(tenantId, question);
+  } else {
+    await askQuestionPost(tenantId, question);
+  }
+
+  document.getElementById('ask-btn').disabled = false;
+}
+
+async function askQuestionPost(tenantId, question) {
+  setStatus('Querying...');
+  try {
+    const result = await fetchJSON(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/nlq', {
+      method: 'POST',
+      headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ question })
+    });
+    addConversationEntry(question, result, false);
+    document.getElementById('question').value = '';
+    setStatus('Done (' + result.executionTimeMs + 'ms)');
+  } catch (e) { setStatus('Error: ' + e.message); }
+}
+
+async function askQuestionSSE(tenantId, question) {
+  setStatus('Connecting SSE stream...');
+  const url = API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/nlq/stream?question=' + encodeURIComponent(question) + '&sessionId=' + encodeURIComponent(sessionId);
+  try {
+    const resp = await fetch(url, { headers: authHeaders() });
+    if (!resp.ok) { setStatus('SSE failed: ' + resp.statusText); return; }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let sparql = '';
+    let result = null;
+    setStatus('Streaming...');
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          const eventType = line.slice(7).trim();
+          continue;
+        }
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.sparql) { sparql = data.sparql; setStatus('SPARQL generated'); }
+            if (data.variables || data.results) { result = data; }
+            if (data.stage) setStatus('Stage: ' + data.stage);
+          } catch {}
+        }
+      }
+    }
+
+    if (sparql && result) {
+      addConversationEntry(question, result, true);
+    } else if (sparql) {
+      addConversationEntry(question, { question, sparql, mode: 'stream', variables: [], results: [], executionTimeMs: 0 }, true);
+    }
+    document.getElementById('question').value = '';
+    setStatus('SSE stream complete');
+  } catch (e) { setStatus('SSE error: ' + e.message); }
+}
+
+function addConversationEntry(question, result, isStream) {
+  conversationCount++;
+  const container = document.getElementById('conversation');
+  const entry = document.createElement('div');
+  entry.className = 'entry';
+  const modeLabel = isStream ? 'stream' : (result.mode || 'template');
+  entry.innerHTML =
+    '<div class="entry-header"><span>#' + conversationCount + ' ' + esc(question) + '</span>' +
+    '<div class="actions">' +
+    '<button onclick="copySparql(this)" title="Copy SPARQL">Copy</button>' +
+    '<button onclick="downloadCsv(this)" title="Download as CSV">CSV</button>' +
+    '<button onclick="downloadJson(this)" title="Download as JSON">JSON</button>' +
+    '<span class="mode-badge ' + (isStream ? 'streaming-badge' : '') + '">' + esc(modeLabel) + '</span></div></div>' +
+    '<div class="entry-body">' +
+    '<div class="sparql">' + esc(result.sparql) + '</div>' +
+    '<div style="font-size:11px;color:#637083;margin-bottom:4px;">' + (result.executionTimeMs || 0) + 'ms | ' + (result.variables || []).length + ' cols | ' + (result.results || []).length + ' rows</div>' +
+    buildResultTable(result.variables, result.results) +
+    '</div>';
+  container.prepend(entry);
+}
+
+function buildResultTable(variables, results) {
+  if (!variables || !variables.length || !results || !results.length) return '<div style="color:#637083;font-size:12px;">No results</div>';
+  let html = '<table><thead><tr>' + variables.map(v => '<th>' + esc(v) + '</th>').join('') + '</tr></thead><tbody>';
+  results.forEach(row => {
+    html += '<tr>' + variables.map(v => '<td>' + esc(String(row[v] != null ? row[v] : '')) + '</td>').join('') + '</tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+
+function copySparql(btn) {
+  const sparql = btn.closest('.entry').querySelector('.sparql').textContent;
+  navigator.clipboard.writeText(sparql).then(() => { setStatus('SPARQL copied'); });
+}
+
+function downloadCsv(btn) {
+  const entry = btn.closest('.entry');
+  const headers = [...entry.querySelectorAll('th')].map(th => th.textContent);
+  const rows = [...entry.querySelectorAll('tbody tr')].map(tr => [...tr.querySelectorAll('td')].map(td => td.textContent));
+  let csv = headers.join(',') + '\n' + rows.map(r => r.map(v => '"' + v.replace(/"/g, '""') + '"').join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'query-result.csv'; a.click();
+  URL.revokeObjectURL(url);
+  setStatus('CSV downloaded');
+}
+
+function downloadJson(btn) {
+  const entry = btn.closest('.entry');
+  const headers = [...entry.querySelectorAll('th')].map(th => th.textContent);
+  const rows = [...entry.querySelectorAll('tbody tr')].map(tr => {
+    const obj = {};
+    [...tr.querySelectorAll('td')].forEach((td, i) => obj[headers[i]] = td.textContent);
+    return obj;
+  });
+  const json = JSON.stringify(rows, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'query-result.json'; a.click();
+  URL.revokeObjectURL(url);
+  setStatus('JSON downloaded');
+}
+
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+if (getApiKey()) loadTenants();
+if (sessionId) document.getElementById('session-info').textContent = 'Session: ' + sessionId.slice(0, 8) + '...';
+</script>
+</body>
+</html>

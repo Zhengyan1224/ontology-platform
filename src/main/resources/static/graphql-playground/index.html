@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GraphQL Playground</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #202636; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: #182033; color: #f5f7fb; }
+header h1 { font-size: 18px; margin: 0; }
+header a { color: #c8d0dc; text-decoration: none; font-size: 14px; }
+header a:hover { color: #fff; }
+header input { padding: 6px 10px; border: 1px solid #44506a; border-radius: 4px; background: #111a2d; color: #f5f7fb; font-size: 14px; width: 200px; }
+#playground { height: calc(100vh - 52px); }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&#8592; Home</a>
+  <h1>GraphQL Playground</h1>
+  <input id="api-key" type="password" placeholder="API Key" autocomplete="off">
+</header>
+<div id="playground"></div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/graphiql@3/graphiql.min.css" />
+<script crossorigin src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://cdn.jsdelivr.net/npm/graphiql@3/graphiql.min.js"></script>
+<script>
+const KEY_STORAGE = 'graphql-playground-api-key';
+const apiKeyInput = document.getElementById('api-key');
+apiKeyInput.value = localStorage.getItem(KEY_STORAGE) || '';
+apiKeyInput.addEventListener('change', () => localStorage.setItem(KEY_STORAGE, apiKeyInput.value.trim()));
+
+function fetcher(graphQLParams) {
+  const headers = { 'Content-Type': 'application/json' };
+  const key = apiKeyInput.value.trim();
+  if (key) headers['X-API-Key'] = key;
+  return fetch('/graphql', { method: 'POST', headers, body: JSON.stringify(graphQLParams) })
+    .then(res => res.json());
+}
+
+ReactDOM.render(
+  React.createElement(GraphiQL, { fetcher: fetcher, defaultQuery: `# GraphQL Query Example
+# Try: sparql(tenantId: "sample", query: "SELECT ?book ?title WHERE {?book a :Book . ?book :title ?title .}") {
+#   variables
+#   results { values }
+#   executionTimeMs
+# }
+
+{
+  sparql(tenantId: "sample", query: "SELECT ?book ?title WHERE {?book a :Book . ?book :title ?title .}") {
+    variables
+    results {
+      values
+    }
+    executionTimeMs
+  }
+}` }),
+  document.getElementById('playground')
+);
+</script>
+</body>
+</html>

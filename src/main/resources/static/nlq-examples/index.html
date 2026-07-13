@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NLQ Examples</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #202636; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: #182033; color: #f5f7fb; position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 18px; margin: 0; }
+header a { color: #c8d0dc; text-decoration: none; font-size: 14px; }
+header a:hover { color: #fff; }
+header input, header select { padding: 6px 10px; border: 1px solid #44506a; border-radius: 4px; background: #111a2d; color: #f5f7fb; font-size: 14px; }
+header button { padding: 6px 12px; border: 1px solid #2868d8; border-radius: 4px; background: #2868d8; color: #fff; cursor: pointer; }
+main { max-width: 960px; margin: 0 auto; padding: 20px; }
+.card { background: #fff; border: 1px solid #dce3ee; border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+.card h2 { margin: 0; padding: 14px 18px; font-size: 15px; background: #f0f3f8; border-bottom: 1px solid #dce3ee; }
+.card-body { padding: 14px 18px; }
+.example { border: 1px solid #e4e8f0; border-radius: 6px; margin-bottom: 12px; overflow: hidden; }
+.example h3 { margin: 0; padding: 10px 14px; font-size: 14px; background: #f8f9fc; border-bottom: 1px solid #e4e8f0; }
+.example-body { padding: 10px 14px; }
+pre { background: #f8f9fc; border: 1px solid #e4e8f0; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 12px; white-space: pre-wrap; margin: 4px 0; }
+.empty { padding: 30px; text-align: center; color: #748095; }
+.status { color: #536174; font-size: 13px; }
+button { padding: 6px 12px; border: 1px solid #2868d8; border-radius: 4px; background: #2868d8; color: #fff; cursor: pointer; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&#8592; Home</a>
+  <h1>NLQ Few-Shot Examples</h1>
+  <input id="api-key" type="password" placeholder="API Key" autocomplete="off" style="width:160px;">
+  <select id="tenant-select"></select>
+  <button id="refresh-btn">Refresh</button>
+</header>
+<main>
+  <div class="card">
+    <h2>Few-Shot Examples</h2>
+    <div class="card-body" id="examples-list"><div class="empty">Select a tenant to view examples</div></div>
+  </div>
+</main>
+
+<script>
+const API_BASE = '/api/v1';
+const KEY_STORAGE = 'nlq-examples-api-key';
+
+function getApiKey() { return document.getElementById('api-key').value.trim(); }
+function authHeaders() { return getApiKey() ? { 'X-API-Key': getApiKey() } : {}; }
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+async function fetchJSON(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) { let m = res.statusText; try { const b = await res.json(); m = b.message || b.error || m; } catch {} throw new Error(m); }
+  return res.json();
+}
+
+document.getElementById('api-key').value = localStorage.getItem(KEY_STORAGE) || '';
+document.getElementById('api-key').addEventListener('change', function () {
+  localStorage.setItem(KEY_STORAGE, this.value.trim());
+  loadTenants();
+});
+
+async function loadTenants() {
+  const select = document.getElementById('tenant-select');
+  select.innerHTML = '';
+  if (!getApiKey()) return;
+  try {
+    const tenants = await fetchJSON(API_BASE + '/tenants', { headers: authHeaders() });
+    tenants.forEach(t => { const opt = document.createElement('option'); opt.value = t.id; opt.textContent = t.name || t.id; select.appendChild(opt); });
+    if (tenants.length) loadExamples(tenants[0].id);
+  } catch (e) { document.getElementById('examples-list').innerHTML = '<div class="empty">Error: ' + esc(e.message) + '</div>'; }
+}
+
+async function loadExamples(tenantId) {
+  const el = document.getElementById('examples-list');
+  el.innerHTML = '<div class="empty">Loading...</div>';
+  try {
+    const data = await fetchJSON(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/nlq/examples', { headers: authHeaders() });
+    const examples = data.examples || [];
+    if (!examples.length) { el.innerHTML = '<div class="empty">No few-shot examples for this tenant</div>'; return; }
+    let html = '';
+    examples.forEach((ex, i) => {
+      html += '<div class="example">' +
+        '<h3>#' + (i + 1) + ' ' + esc(ex.question) + '</h3>' +
+        '<div class="example-body"><pre>' + esc(ex.sparql) + '</pre></div></div>';
+    });
+    el.innerHTML = html;
+  } catch (e) { el.innerHTML = '<div class="empty">Error: ' + esc(e.message) + '</div>'; }
+}
+
+document.getElementById('tenant-select').addEventListener('change', e => loadExamples(e.target.value));
+document.getElementById('refresh-btn').addEventListener('click', () => {
+  const t = document.getElementById('tenant-select').value;
+  if (t) loadExamples(t);
+});
+
+if (getApiKey()) loadTenants();
+</script>
+</body>
+</html>

@@ -52,6 +52,19 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
     }
 
+    public long getAvailableTokens(String clientIp) {
+        Bucket bucket = buckets.get(clientIp);
+        return bucket != null ? bucket.getAvailableTokens() : capacity;
+    }
+
+    public long getCapacity() { return capacity; }
+
+    public long getRefillTokens() { return refillTokens; }
+
+    public long getRefillPeriodSeconds() { return refillPeriodSeconds; }
+
+    public int getActiveClients() { return buckets.size(); }
+
     private boolean isRateLimited(String path) {
         return path.matches(".*/auth/login|.*/auth/reinitialize|.*/audit-clear.*");
     }

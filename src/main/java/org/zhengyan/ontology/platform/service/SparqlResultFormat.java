@@ -32,10 +32,17 @@ public enum SparqlResultFormat {
         if (acceptHeader == null || acceptHeader.isBlank()) {
             return Optional.of(JSON);
         }
-        for (SparqlResultFormat format : values()) {
-            if (format.mediaType.toString().equals(acceptHeader)
-                    || format.mediaType.isCompatibleWith(MediaType.parseMediaType(acceptHeader))) {
-                return Optional.of(format);
+        String[] parts = acceptHeader.split(",");
+        for (String part : parts) {
+            String trimmed = part.trim();
+            try {
+                MediaType mt = MediaType.parseMediaType(trimmed);
+                for (SparqlResultFormat format : values()) {
+                    if (format.mediaType.isCompatibleWith(mt)) {
+                        return Optional.of(format);
+                    }
+                }
+            } catch (Exception ignored) {
             }
         }
         return Optional.empty();

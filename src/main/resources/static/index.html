@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ontology Platform</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #202636; }
+header { padding: 32px 20px; background: linear-gradient(135deg, #182033 0%, #1a2744 100%); color: #f5f7fb; text-align: center; }
+header h1 { margin: 0 0 6px; font-size: 28px; }
+header p { margin: 0; color: #a8b5c9; font-size: 14px; }
+main { max-width: 960px; margin: 0 auto; padding: 28px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.card { background: #fff; border: 1px solid #dce3ee; border-radius: 10px; overflow: hidden; transition: box-shadow 0.15s; text-decoration: none; color: inherit; display: flex; flex-direction: column; }
+.card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+.card-body { padding: 18px; flex: 1; }
+.card h2 { margin: 0 0 6px; font-size: 16px; color: #182033; }
+.card p { margin: 0 0 10px; font-size: 13px; color: #637083; line-height: 1.5; }
+.card .meta { font-size: 12px; color: #8a98ae; border-top: 1px solid #edf1f6; padding: 10px 18px; display: flex; gap: 12px; }
+.badge { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.badge-admin { background: #fce4ec; color: #c62828; }
+.badge-readonly { background: #e3f2fd; color: #1565c0; }
+.badge-any { background: #e8f5e9; color: #2e7d32; }
+@media (max-width: 640px) {
+  main { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Ontology Platform</h1>
+  <p>OBDA — SPARQL &rarr; Ontop &rarr; SQL &rarr; RDB &rarr; RDF</p>
+</header>
+<main>
+  <a class="card" href="/ontology-viz/">
+    <div class="card-body">
+      <h2>Ontology Visualization</h2>
+      <p>交互式本体图浏览，支持搜索过滤、节点拖拽、force 布局。查看类、属性、关系的完整图谱。</p>
+    </div>
+    <div class="meta"><span class="badge badge-any">任意 API Key</span></div>
+  </a>
+  <a class="card" href="/mapping-assistant/">
+    <div class="card-body">
+      <h2>Mapping Assistant</h2>
+      <p>LLM 辅助的 OBDA 映射编辑器。支持业务上下文描述、分维度评审、OWL/OBDA 草稿生成与应用。</p>
+    </div>
+    <div class="meta"><span class="badge badge-admin">需 Admin API Key</span></div>
+  </a>
+  <a class="card" href="/nlq/">
+    <div class="card-body">
+      <h2>Natural Language Query</h2>
+      <p>自然语言查询多轮对话。模板匹配 + LLM 回退，支持会话历史（X-Session-Id）。</p>
+    </div>
+    <div class="meta"><span class="badge badge-any">任意 API Key</span></div>
+  </a>
+  <a class="card" href="/saved-queries/">
+    <div class="card-body">
+      <h2>Saved Queries</h2>
+      <p>保存、分享 SPARQL 查询结果。创建可分享链接，按租户管理已保存查询。</p>
+    </div>
+    <div class="meta"><span class="badge badge-any">任意 API Key</span></div>
+  </a>
+  <a class="card" href="/admin/">
+    <div class="card-body">
+      <h2>Admin Dashboard</h2>
+      <p>系统管理控制台：租户 CRUD、API Key 管理、缓存清理、审计日志查看。</p>
+    </div>
+    <div class="meta"><span class="badge badge-admin">需 Admin API Key</span></div>
+  </a>
+  <a class="card" href="/graphql-playground/">
+    <div class="card-body">
+      <h2>GraphQL Playground</h2>
+      <p>基于 GraphiQL 的交互式 GraphQL 查询控制台。支持 SPARQL 和 NLQ 的 GraphQL 接口。</p>
+    </div>
+    <div class="meta"><span class="badge badge-any">任意 API Key</span></div>
+  </a>
+  <a class="card" href="/nlq-examples/">
+    <div class="card-body">
+      <h2>NLQ Examples</h2>
+      <p>查看每个租户的 few-shot 示例（question + SPARQL 对），了解 NLQ 模板匹配模式。</p>
+    </div>
+    <div class="meta"><span class="badge badge-any">任意 API Key</span></div>
+  </a>
+  <a class="card" href="/query-history/">
+    <div class="card-body">
+      <h2>Query History</h2>
+      <p>浏览按租户归档的 SPARQL 查询历史，展开查看完整查询，支持重新执行和删除。</p>
+    </div>
+    <div class="meta"><span class="badge badge-admin">需 Admin API Key</span></div>
+  </a>
+  <a class="card" href="/swagger-ui.html" style="opacity:0.7;">
+    <div class="card-body">
+      <h2>Swagger API</h2>
+      <p>REST API 文档，交互式调试所有端点。</p>
+    </div>
+    <div class="meta">OpenAPI 文档</div>
+  </a>
+</main>
+</body>
+</html>

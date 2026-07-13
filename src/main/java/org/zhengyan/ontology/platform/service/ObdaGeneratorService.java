@@ -2,13 +2,17 @@ package org.zhengyan.ontology.platform.service;
 
 import org.springframework.stereotype.Service;
 import org.zhengyan.ontology.platform.config.OwlGenerationProperties;
+import org.zhengyan.ontology.platform.exception.ObdaGenerationException;
 import org.zhengyan.ontology.platform.model.Tenant;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.zhengyan.ontology.platform.config.OwlGenerationProperties.ColumnOverride;
+import org.zhengyan.ontology.platform.config.OwlGenerationProperties.TableOverride;
 
 @Service
 public class ObdaGeneratorService {
@@ -21,7 +25,41 @@ public class ObdaGeneratorService {
         this.metadataReader = metadataReader;
     }
 
-    public String generateObda(Tenant tenant) throws Exception {
+    private String resolveClassName(String tableName) {
+        TableOverride override = namingProperties.getTableOverrides().get(tableName);
+        if (override != null && override.className() != null && !override.className().isBlank()) {
+            return override.className();
+        }
+        return NamingUtils.toClassName(tableName, namingProperties);
+    }
+
+    private String resolvePropertyName(String columnName, String tableName) {
+        TableOverride override = namingProperties.getTableOverrides().get(tableName);
+        if (override != null) {
+            ColumnOverride colOverride = override.columnOverrides().get(columnName);
+            if (colOverride != null && colOverride.propertyName() != null && !colOverride.propertyName().isBlank()) {
+                return colOverride.propertyName();
+            }
+        }
+        return NamingUtils.toPropertyName(columnName, tableName, namingProperties);
+    }
+
+    private boolean shouldExposeColumn(String columnName, String tableName) {
+        TableOverride override = namingProperties.getTableOverrides().get(tableName);
+        if (override != null) {
+            ColumnOverride colOverride = override.columnOverrides().get(columnName);
+            if (colOverride != null) return colOverride.expose();
+        }
+        return true;
+    }
+
+    private boolean shouldExposeTable(String tableName) {
+        TableOverride override = namingProperties.getTableOverrides().get(tableName);
+        if (override != null) return override.expose();
+        return true;
+    }
+
+    public String generateObda(Tenant tenant) {
         try (Connection conn = DriverManager.getConnection(
                 tenant.getJdbcUrl(), tenant.getJdbcUsername(), tenant.getJdbcPassword())) {
 
@@ -40,12 +78,13 @@ public class ObdaGeneratorService {
             sb.append("rdfs:\t\t<http://www.w3.org/2000/01/rdf-schema#>\n\n");
 
             for (JdbcMetadataReader.TableInfo table : tables) {
+                if (!shouldExposeTable(table.name)) continue;
                 boolean isJoin = NamingUtils.isJoinTable(table);
                 if (isJoin && "skip".equalsIgnoreCase(joinBehavior)) {
                     continue;
                 }
 
-                String className = NamingUtils.toClassName(table.name, namingProperties);
+                String className = resolveClassName(table.name);
                 String iriPrefix = NamingUtils.toIriPrefix(className);
 
                 String pkColumn = findPrimaryKeyColumn(table, primaryKeys);
@@ -53,9 +92,10 @@ public class ObdaGeneratorService {
                 if (isJoin && "object-only".equalsIgnoreCase(joinBehavior)) {
                     for (JdbcMetadataReader.ColumnInfo col : table.columns) {
                         if (col.fkTargetTable != null) {
-                            String targetClassName = NamingUtils.toClassName(col.fkTargetTable, namingProperties);
+                            if (!shouldExposeColumn(col.name, table.name)) continue;
+                            String targetClassName = resolveClassName(col.fkTargetTable);
                             String targetIriPrefix = NamingUtils.toIriPrefix(targetClassName);
-                            String objPropName = NamingUtils.toPropertyName(col.name, table.name, namingProperties);
+                            String objPropName = resolvePropertyName(col.name, table.name);
 
                             sb.append("[MappingDeclaration] @collection [[\n");
                             sb.append("mappingId\top_").append(className).append("_").append(objPropName).append("\n");
@@ -85,9 +125,10 @@ public class ObdaGeneratorService {
                         .append(" rdf:type :").append(className);
 
                 for (JdbcMetadataReader.ColumnInfo col : table.columns) {
-                    String propName = NamingUtils.toPropertyName(col.name, table.name, namingProperties);
+                    if (!shouldExposeColumn(col.name, table.name)) continue;
+                    String propName = resolvePropertyName(col.name, table.name);
                     if (col.fkTargetTable != null) {
-                        String targetClassName = NamingUtils.toClassName(col.fkTargetTable, namingProperties);
+                        String targetClassName = resolveClassName(col.fkTargetTable);
                         String targetIriPrefix = NamingUtils.toIriPrefix(targetClassName);
                         String fkIri = NamingUtils.toIriTemplate(col.name, iriTemplate);
                         sb.append(" ; :").append(propName).append(" :").append(targetIriPrefix).append(fkIri);
@@ -111,6 +152,8 @@ public class ObdaGeneratorService {
             }
 
             return sb.toString();
+        } catch (SQLException e) {
+            throw new ObdaGenerationException("Failed to generate OBDA for tenant: " + tenant.getId(), e);
         }
     }
 

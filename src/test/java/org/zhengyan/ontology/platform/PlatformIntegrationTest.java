@@ -13,8 +13,10 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.zhengyan.ontology.platform.service.AuditService;
 import org.zhengyan.ontology.platform.service.TenantPersistenceService;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -157,5 +159,137 @@ class PlatformIntegrationTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertTrue(response.getHeaders().getContentType().toString().contains("text/csv"));
         assertNotNull(response.getBody());
+    }
+
+    @Test
+    @Order(10)
+    void mappingDownloadOwl() {
+        ResponseEntity<String> response = rest.exchange(
+                "/api/v1/tenants/sample/mapping/owl", HttpMethod.GET, null, String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getHeaders().getContentType().toString().contains("text/turtle"));
+        String body = response.getBody();
+        assertNotNull(body);
+        assertTrue(body.contains("Prefix") || body.contains("@prefix") || body.contains(":"));
+    }
+
+    @Test
+    @Order(11)
+    void mappingDownloadObda() {
+        ResponseEntity<String> response = rest.exchange(
+                "/api/v1/tenants/sample/mapping/obda", HttpMethod.GET, null, String.class);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertTrue(response.getHeaders().getContentType().toString().contains("text/plain"));
+        String body = response.getBody();
+        assertNotNull(body);
+        assertTrue(body.contains("[") || body.contains("Mapping") || body.contains("mapping"));
+    }
+
+    @Test
+    @Order(12)
+    void savedQueryCrud() {
+        String shareToken = UUID.randomUUID().toString();
+
+        Map<String, Object> saveBody = new java.util.LinkedHashMap<>();
+        saveBody.put("tenantId", "sample");
+        saveBody.put("question", "List all books");
+        saveBody.put("sparql", "SELECT ?book ?title WHERE { ?book a :Book . ?book :title ?title . }");
+        saveBody.put("resultSummary", "5 results");
+
+        HttpEntity<Map<String, Object>> saveEntity = new HttpEntity<>(saveBody);
+        ResponseEntity<Map<String, Object>> saveResponse = rest.exchange(
+                "/api/v1/saved-queries", HttpMethod.POST, saveEntity,
+                new ParameterizedTypeReference<Map<String, Object>>() {});
+        assertEquals(HttpStatus.CREATED, saveResponse.getStatusCode());
+        assertNotNull(saveResponse.getBody());
+        assertNotNull(saveResponse.getBody().get("shareToken"));
+    }
+
+    @Test
+    @Order(13)
+    void savedQueryListByTenant() {
+        ResponseEntity<Map<String, Object>> response = rest.exchange(
+                "/api/v1/tenants/sample/saved-queries", HttpMethod.GET, null,
+                new ParameterizedTypeReference<Map<String, Object>>() {});
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertNotNull(response.getBody().get("queries"));
+        assertNotNull(response.getBody().get("total"));
+    }
+
+    @Test
+    @Order(14)
+    void sparqlAskQueryReturnsBoolean() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+        HttpEntity<String> entity = new HttpEntity<>(
+                "{\"query\":\"ASK { ?s ?p ?o }\"}", headers);
+        ResponseEntity<Map<String, Object>> response = rest.exchange(
+                "/api/v1/tenants/sample/sparql", HttpMethod.POST, entity,
+                new ParameterizedTypeReference<Map<String, Object>>() {});
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().containsKey("booleanQueryResult"));
+        assertTrue(response.getBody().containsKey("queryType"));
+        assertEquals("BOOLEAN", response.getBody().get("queryType"));
+        assertTrue((Boolean) response.getBody().get("booleanQueryResult"));
+    }
+
+    @Test
+    @Order(15)
+    void sparqlAskFalseQuery() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+        HttpEntity<String> entity = new HttpEntity<>(
+                "{\"query\":\"ASK { ?s ?p ?o FILTER(1 = 0) }\"}", headers);
+        ResponseEntity<Map<String, Object>> response = rest.exchange(
+                "/api/v1/tenants/sample/sparql", HttpMethod.POST, entity,
+                new ParameterizedTypeReference<Map<String, Object>>() {});
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertFalse((Boolean) response.getBody().get("booleanQueryResult"));
+    }
+
+    @Test
+    @Order(16)
+    void queryHistoryListByTenant() {
+        ResponseEntity<List<Map<String, Object>>> response = rest.exchange(
+                "/api/v1/tenants/sample/query-history?limit=10&offset=0", HttpMethod.GET, null,
+                new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+    }
+
+    @Test
+    @Order(17)
+    void queryHistoryRecordsAfterSparql() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+        HttpEntity<String> entity = new HttpEntity<>(
+                "{\"query\":\"SELECT ?s ?p ?o WHERE {?s ?p ?o} LIMIT 2\"}", headers);
+        rest.exchange("/api/v1/tenants/sample/sparql", HttpMethod.POST, entity,
+                new ParameterizedTypeReference<Map<String, Object>>() {});
+
+        ResponseEntity<List<Map<String, Object>>> history = rest.exchange(
+                "/api/v1/tenants/sample/query-history?limit=5&offset=0", HttpMethod.GET, null,
+                new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+        assertEquals(HttpStatus.OK, history.getStatusCode());
+        assertNotNull(history.getBody());
+        assertFalse(history.getBody().isEmpty());
+    }
+
+    @Test
+    @Order(18)
+    void generateMappingReturnsZip() {
+        ResponseEntity<byte[]> response = rest.exchange(
+                "/api/v1/tenants/sample/generate-mapping", HttpMethod.POST, null, byte[].class);
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().length > 0);
+        assertEquals(MediaType.APPLICATION_OCTET_STREAM, response.getHeaders().getContentType());
+        assertNotNull(response.getHeaders().get("X-Validation-Valid"));
     }
 }

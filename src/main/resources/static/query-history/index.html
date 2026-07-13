@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Query History</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #202636; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: #182033; color: #f5f7fb; position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 18px; margin: 0; }
+header a { color: #c8d0dc; text-decoration: none; font-size: 14px; }
+header a:hover { color: #fff; }
+header select { padding: 6px 10px; border: 1px solid #44506a; border-radius: 4px; background: #111a2d; color: #f5f7fb; font-size: 14px; }
+header input { padding: 6px 10px; border: 1px solid #44506a; border-radius: 4px; background: #111a2d; color: #f5f7fb; font-size: 14px; }
+header button { padding: 6px 12px; border: 1px solid #2868d8; border-radius: 4px; background: #2868d8; color: #fff; cursor: pointer; }
+main { max-width: 1000px; margin: 0 auto; padding: 24px 20px; }
+.card { background: #fff; border: 1px solid #dce3ee; border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+.card h2 { margin: 0; padding: 14px 18px; font-size: 15px; background: #f0f3f8; border-bottom: 1px solid #dce3ee; }
+.card-body { padding: 14px 18px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { padding: 8px 10px; text-align: left; border-bottom: 2px solid #dce3ee; background: #f0f3f8; white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+tr:hover td { background: #f8faff; }
+.sparql-cell { max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; font-family: monospace; font-size: 12px; }
+.sparql-cell.expanded { white-space: pre-wrap; word-break: break-all; }
+.pagination { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 16px; }
+.pagination button { padding: 4px 12px; }
+.empty { text-align: center; color: #637083; padding: 40px; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 14px; z-index: 200; }
+.toast.error { background: #c62828; }
+button { font: inherit; cursor: pointer; padding: 4px 8px; border: 1px solid #2868d8; border-radius: 4px; background: #2868d8; color: #fff; }
+button.danger { background: #d32f2f; border-color: #d32f2f; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&larr; Home</a>
+  <h1>Query History</h1>
+  <select id="tenant-select" style="margin-left:auto;"><option value="">Select tenant...</option></select>
+  <input id="api-key" type="password" placeholder="API Key" autocomplete="off" style="width:140px;">
+</header>
+<main>
+  <div class="card">
+    <h2>SPARQL Query History</h2>
+    <div class="card-body">
+      <div id="history-content" class="empty">Select a tenant and API key to view history</div>
+      <div id="pagination" class="pagination" style="display:none;">
+        <button id="prev-page">&larr; Prev</button>
+        <span id="page-info" style="font-size:13px;color:#637083;"></span>
+        <button id="next-page">Next &rarr;</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const API_BASE = '/api/v1';
+const KEY_STORAGE = 'history-api-key';
+const PAGE_SIZE = 50;
+let currentTenant = '';
+let currentOffset = 0;
+let hasMore = false;
+
+function getApiKey() { return document.getElementById('api-key').value.trim(); }
+function authHeaders() {
+  const h = {};
+  if (getApiKey()) h['X-API-Key'] = getApiKey();
+  return h;
+}
+function toast(msg, err) {
+  const e = document.createElement('div'); e.className = 'toast' + (err ? ' error' : ''); e.textContent = msg; document.body.appendChild(e); setTimeout(() => e.remove(), 3000);
+}
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+document.getElementById('api-key').value = localStorage.getItem(KEY_STORAGE) || '';
+document.getElementById('api-key').addEventListener('change', function () {
+  localStorage.setItem(KEY_STORAGE, this.value.trim());
+  if (currentTenant) loadHistory();
+});
+
+async function loadTenants() {
+  try {
+    const res = await fetch(API_BASE + '/tenants', { headers: authHeaders() });
+    const tenants = await res.json();
+    const sel = document.getElementById('tenant-select');
+    tenants.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id; opt.textContent = t.name + ' (' + t.id + ')';
+      sel.appendChild(opt);
+    });
+  } catch (e) { toast('Failed to load tenants: ' + e.message, true); }
+}
+
+document.getElementById('tenant-select').addEventListener('change', function () {
+  currentTenant = this.value;
+  currentOffset = 0;
+  if (currentTenant) loadHistory();
+});
+
+async function loadHistory() {
+  const div = document.getElementById('history-content');
+  const pagination = document.getElementById('pagination');
+  if (!currentTenant) { div.innerHTML = '<div class="empty">Select a tenant</div>'; pagination.style.display = 'none'; return; }
+  div.innerHTML = '<div class="empty">Loading...</div>';
+  try {
+    const res = await fetch(API_BASE + '/tenants/' + encodeURIComponent(currentTenant) + '/query-history?limit=' + (PAGE_SIZE + 1) + '&offset=' + currentOffset, { headers: authHeaders() });
+    if (!res.ok) { div.innerHTML = '<div class="empty" style="color:#c62828;">Access denied — use an admin API key</div>'; return; }
+    const entries = await res.json();
+    hasMore = entries.length > PAGE_SIZE;
+    if (hasMore) entries.pop();
+    if (entries.length === 0) {
+      div.innerHTML = '<div class="empty">No query history for this tenant</div>';
+      pagination.style.display = 'none';
+      return;
+    }
+    let html = '<table><thead><tr><th>#</th><th>SPARQL</th><th>Time (ms)</th><th>Date</th><th>Action</th></tr></thead><tbody>';
+    entries.forEach((e, i) => {
+      const rowNum = currentOffset + i + 1;
+      const shortSparql = (e.sparql || '').substring(0, 80) + ((e.sparql || '').length > 80 ? '...' : '');
+      html += '<tr>';
+      html += '<td style="color:#637083;">' + rowNum + '</td>';
+      html += '<td><div class="sparql-cell" onclick="this.classList.toggle(\'expanded\')" title="Click to expand">' + esc(shortSparql) + '</div></td>';
+      html += '<td>' + e.executionTimeMs + '</td>';
+      html += '<td style="white-space:nowrap;font-size:12px;">' + (e.createdAt ? e.createdAt.substring(0, 19) : '') + '</td>';
+      html += '<td><button onclick="executeQuery(' + "'" + esc(e.sparql) + "'" + ')">Execute</button> <button class="danger" onclick="deleteEntry(' + e.id + ')">Delete</button></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    div.innerHTML = html;
+    pagination.style.display = 'flex';
+    document.getElementById('page-info').textContent = 'Page ' + (Math.floor(currentOffset / PAGE_SIZE) + 1);
+    document.getElementById('prev-page').disabled = currentOffset === 0;
+    document.getElementById('next-page').disabled = !hasMore;
+  } catch (e) { div.innerHTML = '<div class="empty" style="color:#c62828;">Error: ' + esc(e.message) + '</div>'; }
+}
+
+document.getElementById('prev-page').addEventListener('click', () => {
+  if (currentOffset >= PAGE_SIZE) { currentOffset -= PAGE_SIZE; loadHistory(); }
+});
+document.getElementById('next-page').addEventListener('click', () => {
+  if (hasMore) { currentOffset += PAGE_SIZE; loadHistory(); }
+});
+
+function executeQuery(sparql) {
+  window.location.href = '/tenant/?id=' + encodeURIComponent(currentTenant) + '&sparql=' + encodeURIComponent(sparql);
+}
+
+async function deleteEntry(id) {
+  if (!confirm('Delete this history entry?')) return;
+  try {
+    const res = await fetch(API_BASE + '/query-history/' + id, { method: 'DELETE', headers: authHeaders() });
+    if (res.ok) { toast('Deleted'); loadHistory(); }
+    else { toast('Delete failed', true); }
+  } catch (e) { toast(e.message, true); }
+}
+
+loadTenants();
+</script>
+</body>
+</html>

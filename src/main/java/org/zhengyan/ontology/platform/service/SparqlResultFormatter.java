@@ -1,5 +1,6 @@
 package org.zhengyan.ontology.platform.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.zhengyan.ontology.platform.model.SparqlQueryResult;
 import org.eclipse.rdf4j.query.impl.MapBindingSet;
 import org.eclipse.rdf4j.query.resultio.sparqljson.SPARQLResultsJSONWriter;
@@ -16,9 +17,33 @@ import org.springframework.stereotype.Component;
 import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 @Component
 public class SparqlResultFormatter {
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    public void writeBooleanResult(SparqlResultFormat format, SparqlQueryResult queryResult,
+                                   OutputStream out) throws Exception {
+        boolean value = queryResult.isBooleanQueryResult();
+        switch (format) {
+            case JSON -> {
+                Map<String, Object> map = new LinkedHashMap<>();
+                map.put("boolean", value);
+                map.put("executionTimeMs", queryResult.getExecutionTimeMs());
+                objectMapper.writeValue(out, map);
+            }
+            case SPARQL_JSON -> {
+                Map<String, Object> head = new LinkedHashMap<>();
+                Map<String, Object> response = new LinkedHashMap<>();
+                response.put("head", head);
+                response.put("boolean", value);
+                objectMapper.writeValue(out, response);
+            }
+            default -> throw new IllegalArgumentException("Unsupported format for boolean result: " + format);
+        }
+    }
 
     public void writeTupleResult(SparqlResultFormat format, SparqlQueryResult queryResult,
                                  OutputStream out) throws Exception {

@@ -26,28 +26,12 @@ public class CacheConfig {
     @Value("${ontology.cache.query.ttl-seconds:600}")
     private int queryTtlSeconds;
 
-    @Bean("sparqlResultCache")
-    public Caffeine<Object, Object> sparqlResultCacheBuilder() {
-        return Caffeine.newBuilder()
-                .maximumSize(sparqlMaxSize)
-                .expireAfterWrite(sparqlTtlSeconds, TimeUnit.SECONDS)
-                .recordStats();
-    }
-
-    @Bean("queryResultCache")
-    public Caffeine<Object, Object> queryResultCacheBuilder() {
-        return Caffeine.newBuilder()
-                .maximumSize(queryMaxSize)
-                .expireAfterWrite(queryTtlSeconds, TimeUnit.SECONDS)
-                .recordStats();
-    }
-
     @Bean
     public CacheManager cacheManager() {
         CaffeineCacheManager manager = new CaffeineCacheManager("sparqlResults", "queryResults");
         manager.setCaffeine(Caffeine.newBuilder()
-                .maximumSize(500)
-                .expireAfterWrite(300, TimeUnit.SECONDS)
+                .maximumSize(sparqlMaxSize)
+                .expireAfterWrite(sparqlTtlSeconds, TimeUnit.SECONDS)
                 .recordStats());
         return manager;
     }

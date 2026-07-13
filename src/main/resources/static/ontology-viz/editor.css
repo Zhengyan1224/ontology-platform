@@ -1,0 +1,42 @@
+#app-layout { display: flex; flex: 1 1 auto; min-height: 0; width: 100%; overflow: hidden; }
+#left-panel { width: 320px; min-width: 280px; overflow-y: auto; border-right: 1px solid #ddd; background: #fafafa; padding: 8px; flex-shrink: 0; }
+#center-panel { flex: 1 1 auto; min-width: 0; position: relative; overflow: hidden; }
+#right-panel { width: 320px; min-width: 280px; overflow-y: auto; border-left: 1px solid #ddd; background: #fafafa; padding: 8px; flex-shrink: 0; }
+
+.panel-header { font-size: 13px; font-weight: 600; color: #555; padding: 4px 0 8px; border-bottom: 1px solid #eee; margin-bottom: 8px; }
+
+.schema-table { margin-bottom: 12px; border: 1px solid #e0e0e0; border-radius: 4px; background: #fff; }
+.schema-table-header { display: flex; align-items: center; gap: 6px; padding: 6px 8px; background: #f0f4f8; border-bottom: 1px solid #e0e0e0; cursor: pointer; user-select: none; }
+.schema-table-header:hover { background: #e3edf5; }
+.schema-table-header .toggle-icon { font-size: 10px; width: 14px; color: #888; }
+.schema-table-header .class-name-input { flex: 1; border: 1px solid #ccc; border-radius: 3px; padding: 2px 6px; font-size: 13px; font-weight: 600; background: #fff; }
+.schema-table-header .class-name-input.suggested { border-color: #ff9800; background: #fff8e1; }
+.schema-table-header .table-name-label { font-size: 11px; color: #999; margin-right: 4px; }
+.schema-columns { padding: 0; }
+.schema-column { display: flex; align-items: center; gap: 4px; padding: 3px 8px 3px 24px; font-size: 13px; border-bottom: 1px solid #f5f5f5; }
+.schema-column:last-child { border-bottom: none; }
+.schema-column .col-name-input { flex: 1; border: 1px solid #e0e0e0; border-radius: 3px; padding: 1px 4px; font-size: 12px; background: #fff; }
+.schema-column .col-name-input.suggested { border-color: #ff9800; background: #fff8e1; }
+.schema-column .col-pk-badge { font-size: 9px; color: #1976d2; font-weight: 600; }
+.schema-column .col-fk-badge { font-size: 9px; color: #c62828; font-weight: 600; }
+.schema-column .col-raw-name { font-size: 10px; color: #aaa; margin-left: 2px; }
+.schema-column input[type="checkbox"] { margin: 0; cursor: pointer; }
+
+.action-bar { display: flex; gap: 6px; padding: 8px 0; }
+.action-bar button { padding: 6px 14px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; font-size: 13px; background: #fff; }
+.action-bar button:hover { background: #f0f0f0; }
+.action-bar button.primary { background: #1976d2; color: #fff; border-color: #1565c0; }
+.action-bar button.primary:hover { background: #1565c0; }
+
+.suggestion-item { padding: 6px 8px; margin-bottom: 6px; border: 1px solid #e0e0e0; border-radius: 4px; background: #fff; font-size: 13px; }
+.suggestion-item .suggestion-text { color: #333; }
+.suggestion-item .suggestion-apply { float: right; padding: 2px 8px; border: 1px solid #ff9800; border-radius: 3px; background: #fff3e0; color: #e65100; cursor: pointer; font-size: 11px; }
+.suggestion-item .suggestion-apply:hover { background: #ffe0b2; }
+
+.edit-panel-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 100; display: flex; align-items: center; justify-content: center; }
+.edit-panel { background: #fff; border-radius: 8px; padding: 20px; min-width: 320px; max-width: 480px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+.edit-panel h3 { margin: 0 0 12px; font-size: 16px; }
+.edit-panel label { display: block; margin-bottom: 8px; font-size: 13px; color: #555; }
+.edit-panel input[type="text"] { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+.edit-panel .edit-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+.edit-panel .edit-actions button { padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }

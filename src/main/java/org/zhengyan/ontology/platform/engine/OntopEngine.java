@@ -9,6 +9,7 @@ import org.eclipse.rdf4j.model.Model;
 import org.eclipse.rdf4j.model.impl.TreeModel;
 import org.eclipse.rdf4j.query.Binding;
 import org.eclipse.rdf4j.query.BindingSet;
+import org.eclipse.rdf4j.query.BooleanQuery;
 import org.eclipse.rdf4j.query.GraphQueryResult;
 import org.eclipse.rdf4j.query.QueryLanguage;
 import org.eclipse.rdf4j.query.TupleQueryResult;
@@ -16,6 +17,7 @@ import org.eclipse.rdf4j.repository.Repository;
 import org.eclipse.rdf4j.repository.RepositoryConnection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.zhengyan.ontology.platform.model.SparqlQueryResult.QueryType;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -71,18 +73,19 @@ public class OntopEngine implements OntologyEngine {
         long start = System.currentTimeMillis();
 
         RepositoryConnection conn = repo.getConnection();
+        QueryType queryType = getQueryType(sparql);
         try {
-            if (isGraphQuery(sparql)) {
-                return executeGraphQuery(conn, sparql, start);
-            } else {
-                return executeTupleQuery(conn, sparql, start);
-            }
+            return switch (queryType) {
+                case BOOLEAN -> executeBooleanQuery(conn, sparql, start);
+                case CONSTRUCT, DESCRIBE -> executeGraphQuery(conn, sparql, start, queryType);
+                default -> executeTupleQuery(conn, sparql, start);
+            };
         } finally {
             closeConnection(conn);
         }
     }
 
-    private SparqlQueryResult executeGraphQuery(RepositoryConnection conn, String sparql, long start) throws Exception {
+    private SparqlQueryResult executeGraphQuery(RepositoryConnection conn, String sparql, long start, SparqlQueryResult.QueryType queryType) throws Exception {
         GraphQueryResult graphResult = conn.prepareGraphQuery(QueryLanguage.SPARQL, sparql).evaluate();
         try {
             Model model = new TreeModel();
@@ -90,7 +93,7 @@ public class OntopEngine implements OntologyEngine {
                 model.add(graphResult.next());
             }
             long elapsed = System.currentTimeMillis() - start;
-            SparqlQueryResult result = new SparqlQueryResult(model, elapsed);
+            SparqlQueryResult result = new SparqlQueryResult(queryType, model, elapsed);
             try {
                 result.setTranslatedSql(translateToSql(sparql));
             } catch (Exception e) {
@@ -128,9 +131,30 @@ public class OntopEngine implements OntologyEngine {
         return queryResult;
     }
 
-    private boolean isGraphQuery(String sparql) {
+    private SparqlQueryResult executeBooleanQuery(RepositoryConnection conn, String sparql, long start) throws Exception {
+        BooleanQuery booleanQuery = conn.prepareBooleanQuery(QueryLanguage.SPARQL, sparql);
+        boolean result;
+        try {
+            result = booleanQuery.evaluate();
+        } finally {
+            try { ((AutoCloseable) booleanQuery).close(); } catch (Exception ignored) { }
+        }
+        long elapsed = System.currentTimeMillis() - start;
+        SparqlQueryResult queryResult = new SparqlQueryResult(result, elapsed);
+        try {
+            queryResult.setTranslatedSql(translateToSql(sparql));
+        } catch (Exception e) {
+            queryResult.setTranslatedSql("[ASK query - SQL translation not available]");
+        }
+        return queryResult;
+    }
+
+    private QueryType getQueryType(String sparql) {
         String trimmed = sparql.trim().toUpperCase();
-        return trimmed.startsWith("CONSTRUCT") || trimmed.startsWith("DESCRIBE");
+        if (trimmed.startsWith("ASK")) return QueryType.BOOLEAN;
+        if (trimmed.startsWith("CONSTRUCT")) return QueryType.CONSTRUCT;
+        if (trimmed.startsWith("DESCRIBE")) return QueryType.DESCRIBE;
+        return QueryType.SELECT;
     }
 
     @Override

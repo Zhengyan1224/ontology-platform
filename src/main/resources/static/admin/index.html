@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #202636; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: #182033; color: #f5f7fb; position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 18px; margin: 0; }
+header input { padding: 6px 10px; border: 1px solid #44506a; border-radius: 4px; background: #111a2d; color: #f5f7fb; font-size: 14px; }
+header button { padding: 6px 12px; border: 1px solid #2868d8; border-radius: 4px; background: #2868d8; color: #fff; cursor: pointer; }
+button { font: inherit; cursor: pointer; padding: 6px 12px; border: 1px solid #c8d1df; border-radius: 4px; background: #fff; color: #202636; }
+button.primary { background: #2868d8; color: #fff; border-color: #2868d8; }
+button.danger { background: #d32f2f; color: #fff; border-color: #d32f2f; }
+button.small { padding: 3px 8px; font-size: 12px; }
+input, select, textarea { font: inherit; padding: 6px 10px; border: 1px solid #c8d1df; border-radius: 4px; }
+main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; }
+.card { background: #fff; border: 1px solid #dce3ee; border-radius: 8px; overflow: hidden; }
+.card h2 { margin: 0; padding: 14px 18px; font-size: 15px; background: #f0f3f8; border-bottom: 1px solid #dce3ee; display: flex; justify-content: space-between; align-items: center; }
+.card-body { padding: 14px 18px; }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: #fff; border-radius: 8px; padding: 24px; min-width: 480px; max-width: 600px; max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
+.modal h3 { margin: 0 0 16px; font-size: 16px; }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.field label { font-size: 13px; color: #637083; }
+.field input { width: 100%; }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #edf1f6; }
+th { font-weight: 600; color: #42526a; background: #f8fafc; white-space: nowrap; }
+td { vertical-align: middle; }
+tr:hover td { background: #f8fafc; }
+.status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.status-up { background: #e8f5e9; color: #2e7d32; }
+.status-down { background: #fce4ec; color: #c62828; }
+.status-unknown { background: #fff3e0; color: #e65100; }
+.toolbar { display: flex; gap: 8px; margin-bottom: 10px; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 14px; z-index: 200; }
+.toast.error { background: #c62828; }
+.empty { padding: 30px; text-align: center; color: #748095; }
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Admin Dashboard</h1>
+  <input id="api-key" type="password" placeholder="Admin API Key" autocomplete="off" style="width:200px;">
+  <button id="refresh-all" type="button">Refresh</button>
+</header>
+<main>
+  <div class="card">
+    <h2>Tenants <button id="add-tenant-btn" class="primary small">+ New</button></h2>
+    <div class="card-body" id="tenant-list"></div>
+  </div>
+  <div class="card">
+    <h2>API Keys <button id="add-apikey-btn" class="primary small">+ New</button></h2>
+    <div class="card-body" id="apikey-list"></div>
+  </div>
+  <div class="card">
+    <h2>System Actions</h2>
+    <div class="card-body" id="system-actions">
+      <div class="toolbar">
+        <button id="clear-cache-btn" class="primary">Clear Cache</button>
+        <button id="clear-audit-btn" class="danger">Clear Audit Log</button>
+      </div>
+      <div style="margin-top:12px;padding:10px;background:#f8fafc;border-radius:4px;font-size:13px;">
+        <strong>Rate Limit</strong>
+        <div id="rate-limit-status">Loading...</div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Audit Log</h2>
+    <div class="card-body" id="audit-log">
+      <div class="toolbar">
+        <select id="audit-tenant-filter"><option value="">All Tenants</option></select>
+        <button id="refresh-audit-btn">Refresh</button>
+      </div>
+      <div id="audit-log-body"></div>
+    </div>
+  </div>
+</main>
+
+<div id="tenant-modal" class="modal-overlay">
+  <div class="modal">
+    <h3 id="tenant-modal-title">Create Tenant</h3>
+    <div class="field"><label>ID</label><input id="tenant-id" placeholder="my-tenant"></div>
+    <div class="field"><label>Name</label><input id="tenant-name" placeholder="My Tenant"></div>
+    <div class="field"><label>JDBC URL</label><input id="tenant-jdbc-url" placeholder="jdbc:h2:file:..."></div>
+    <div class="field"><label>JDBC Driver</label><input id="tenant-jdbc-driver" placeholder="org.h2.Driver"></div>
+    <div class="field"><label>JDBC Username</label><input id="tenant-jdbc-username" placeholder="sa"></div>
+    <div class="field"><label>JDBC Password</label><input id="tenant-jdbc-password" type="password" placeholder=""></div>
+    <div class="field"><label>OWL Path</label><input id="tenant-owl-path" placeholder="ontologies/my-tenant.owl"></div>
+    <div class="field"><label>OBDA Path</label><input id="tenant-obda-path" placeholder="ontologies/my-tenant.obda"></div>
+    <div class="form-actions">
+      <button id="tenant-modal-cancel">Cancel</button>
+      <button id="tenant-modal-save" class="primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<div id="apikey-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>Create API Key</h3>
+    <div class="field"><label>Name</label><input id="apikey-name" placeholder="My Key"></div>
+    <div class="field"><label>Role</label>
+      <select id="apikey-role">
+        <option value="ROLE_READONLY">Read Only</option>
+        <option value="ROLE_ADMIN">Admin</option>
+      </select>
+    </div>
+    <div class="field"><label>Tenant Scopes (comma-separated, * for all)</label><input id="apikey-scopes" value="*"></div>
+    <div class="field"><label>Expires At (optional)</label><input id="apikey-expires" type="datetime-local"></div>
+    <div class="form-actions">
+      <button id="apikey-modal-cancel">Cancel</button>
+      <button id="apikey-modal-save" class="primary">Save</button>
+    </div>
+    <div id="apikey-created" style="display:none;margin-top:12px;padding:12px;background:#e8f5e9;border-radius:4px;">
+      <strong>Key created:</strong><br><code id="apikey-raw-key" style="word-break:break-all;"></code>
+      <p style="color:#c62828;font-size:12px;margin:4px 0 0;">Save this key — it will not be shown again.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = '/api/v1';
+const KEY_STORAGE = 'admin-api-key';
+
+function getApiKey() { return document.getElementById('api-key').value.trim(); }
+function authHeaders(json) {
+  const h = {};
+  if (getApiKey()) h['X-API-Key'] = getApiKey();
+  if (json) h['Content-Type'] = 'application/json';
+  return h;
+}
+
+function toast(msg, err) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (err ? ' error' : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    let msg = res.statusText;
+    try { const b = await res.json(); msg = b.message || b.error || msg; } catch {}
+    throw new Error(msg);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+document.getElementById('api-key').value = localStorage.getItem(KEY_STORAGE) || '';
+document.getElementById('api-key').addEventListener('change', function () {
+  localStorage.setItem(KEY_STORAGE, this.value.trim());
+  loadAll();
+});
+document.getElementById('refresh-all').addEventListener('click', loadAll);
+
+// ---- Tenant CRUD ----
+async function loadTenants() {
+  const el = document.getElementById('tenant-list');
+  try {
+    const tenants = await api(API_BASE + '/tenants', { headers: authHeaders(false) });
+    if (!tenants.length) { el.innerHTML = '<div class="empty">No tenants</div>'; return; }
+    let html = '<table><thead><tr><th>ID</th><th>Name</th><th>Health</th><th></th></tr></thead><tbody>';
+    tenants.forEach(t => {
+      const healthClass = t.health === 'up' ? 'status-up' : t.health === 'not_initialized' ? 'status-unknown' : 'status-down';
+      const healthLabel = t.health === 'up' ? 'UP' : t.health === 'not_initialized' ? 'N/A' : 'DOWN';
+      html += `<tr>
+        <td>${esc(t.id)}</td>
+        <td>${esc(t.name || '')}</td>
+        <td><span class="status-badge ${healthClass}">${healthLabel}</span></td>
+        <td>
+          <button class="small" onclick="editTenant('${esc(t.id)}')">Edit</button>
+          <button class="small danger" onclick="deleteTenant('${esc(t.id)}')">Delete</button>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch (e) { el.innerHTML = '<div class="empty">Error: ' + esc(e.message) + '</div>'; }
+}
+
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function editTenant(id) {
+  const tid = encodeURIComponent(id);
+  window.location.href = '/tenant/?id=' + tid;
+}
+
+async function deleteTenant(id) {
+  if (!confirm('Delete tenant "' + id + '"?')) return;
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(id), { method: 'DELETE', headers: authHeaders(false) });
+    toast('Tenant deleted');
+    loadAll();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---- Tenant Create Modal ----
+const tenantModal = document.getElementById('tenant-modal');
+document.getElementById('add-tenant-btn').addEventListener('click', () => {
+  document.getElementById('tenant-modal-title').textContent = 'Create Tenant';
+  ['tenant-id','tenant-name','tenant-jdbc-url','tenant-jdbc-driver','tenant-jdbc-username','tenant-jdbc-password','tenant-owl-path','tenant-obda-path'].forEach(id => document.getElementById(id).value = '');
+  tenantModal.classList.add('open');
+});
+document.getElementById('tenant-modal-cancel').addEventListener('click', () => tenantModal.classList.remove('open'));
+document.getElementById('tenant-modal-save').addEventListener('click', async () => {
+  const body = {
+    id: document.getElementById('tenant-id').value.trim(),
+    name: document.getElementById('tenant-name').value.trim(),
+    jdbcUrl: document.getElementById('tenant-jdbc-url').value.trim(),
+    jdbcDriver: document.getElementById('tenant-jdbc-driver').value.trim(),
+    jdbcUsername: document.getElementById('tenant-jdbc-username').value.trim(),
+    jdbcPassword: document.getElementById('tenant-jdbc-password').value,
+    owlPath: document.getElementById('tenant-owl-path').value.trim(),
+    obdaPath: document.getElementById('tenant-obda-path').value.trim()
+  };
+  if (!body.id) { toast('ID is required', true); return; }
+  try {
+    await api(API_BASE + '/tenants', { method: 'POST', headers: authHeaders(true), body: JSON.stringify(body) });
+    toast('Tenant created');
+    tenantModal.classList.remove('open');
+    loadAll();
+  } catch (e) { toast(e.message, true); }
+});
+
+// ---- API Key CRUD ----
+async function loadApiKeys() {
+  const el = document.getElementById('apikey-list');
+  try {
+    const keys = await api(API_BASE + '/api-keys', { headers: authHeaders(false) });
+    if (!keys.length) { el.innerHTML = '<div class="empty">No API keys</div>'; return; }
+    let html = '<table><thead><tr><th>Name</th><th>Prefix</th><th>Role</th><th>Scopes</th><th>Status</th><th></th></tr></thead><tbody>';
+    keys.forEach(k => {
+      const statusLabel = k.enabled ? 'Enabled' : 'Disabled';
+      const statusClass = k.enabled ? 'status-up' : 'status-down';
+      html += `<tr>
+        <td>${esc(k.name)}</td>
+        <td><code>${esc(k.keyPrefix)}</code></td>
+        <td>${esc(k.role)}</td>
+        <td>${esc(k.tenantScopes || '*')}</td>
+        <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+        <td>
+          <button class="small" onclick="toggleKey(${k.id}, ${!k.enabled})">${k.enabled ? 'Disable' : 'Enable'}</button>
+          <button class="small danger" onclick="deleteKey(${k.id})">Delete</button>
+        </td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch (e) { el.innerHTML = '<div class="empty">Error: ' + esc(e.message) + '</div>'; }
+}
+
+async function toggleKey(id, enabled) {
+  try {
+    await api(API_BASE + '/api-keys/' + id + '/toggle?enabled=' + enabled, { method: 'PUT', headers: authHeaders(false) });
+    toast(enabled ? 'Key enabled' : 'Key disabled');
+    loadApiKeys();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deleteKey(id) {
+  if (!confirm('Delete this API key?')) return;
+  try {
+    await api(API_BASE + '/api-keys/' + id, { method: 'DELETE', headers: authHeaders(false) });
+    toast('Key deleted');
+    loadApiKeys();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---- API Key Create Modal ----
+const apikeyModal = document.getElementById('apikey-modal');
+document.getElementById('add-apikey-btn').addEventListener('click', () => {
+  document.getElementById('apikey-name').value = '';
+  document.getElementById('apikey-role').value = 'ROLE_READONLY';
+  document.getElementById('apikey-scopes').value = '*';
+  document.getElementById('apikey-expires').value = '';
+  document.getElementById('apikey-created').style.display = 'none';
+  document.getElementById('apikey-modal-save').style.display = '';
+  apikeyModal.classList.add('open');
+});
+document.getElementById('apikey-modal-cancel').addEventListener('click', () => apikeyModal.classList.remove('open'));
+document.getElementById('apikey-modal-save').addEventListener('click', async () => {
+  const body = {
+    name: document.getElementById('apikey-name').value.trim(),
+    role: document.getElementById('apikey-role').value,
+    tenantScopes: document.getElementById('apikey-scopes').value.trim()
+  };
+  const expires = document.getElementById('apikey-expires').value;
+  if (expires) body.expiresAt = expires + ':00';
+  if (!body.name) { toast('Name is required', true); return; }
+  try {
+    const result = await api(API_BASE + '/api-keys', { method: 'POST', headers: authHeaders(true), body: JSON.stringify(body) });
+    document.getElementById('apikey-created').style.display = 'block';
+    document.getElementById('apikey-raw-key').textContent = result.key;
+    document.getElementById('apikey-modal-save').style.display = 'none';
+    loadApiKeys();
+  } catch (e) { toast(e.message, true); }
+});
+
+// ---- System Actions ----
+document.getElementById('clear-cache-btn').addEventListener('click', async () => {
+  try {
+    await api(API_BASE + '/cache/clear', { method: 'POST', headers: authHeaders(false) });
+    toast('Cache cleared');
+  } catch (e) { toast(e.message, true); }
+});
+document.getElementById('clear-audit-btn').addEventListener('click', async () => {
+  if (!confirm('Clear audit log?')) return;
+  try {
+    await api(API_BASE + '/audit-log/clear', { method: 'POST', headers: authHeaders(false) });
+    toast('Audit log cleared');
+    loadAuditLog();
+  } catch (e) { toast(e.message, true); }
+});
+
+// ---- Rate Limit ----
+async function loadRateLimit() {
+  const el = document.getElementById('rate-limit-status');
+  try {
+    const data = await api(API_BASE + '/rate-limit/status', { headers: authHeaders(false) });
+    const pct = Math.round(data.availableTokens / data.capacity * 100);
+    const color = pct > 50 ? '#2e7d32' : pct > 20 ? '#e65100' : '#c62828';
+    el.innerHTML = 'Tokens: <strong>' + data.availableTokens + '</strong>/' + data.capacity +
+      ' | Refill: ' + data.refillTokens + '/s' +
+      ' | Active Clients: ' + data.activeClients +
+      ' <span style="color:' + color + ';">(' + pct + '%)</span>';
+  } catch (e) { el.innerHTML = 'Error: ' + esc(e.message); }
+}
+
+// ---- Audit Log ----
+async function loadAuditLog() {
+  const body = document.getElementById('audit-log-body');
+  const tenantFilter = document.getElementById('audit-tenant-filter').value || undefined;
+  let url = API_BASE + '/audit-log?limit=50';
+  if (tenantFilter) url += '&tenantId=' + encodeURIComponent(tenantFilter);
+  try {
+    const logs = await api(url, { headers: authHeaders(false) });
+    if (!logs.length) { body.innerHTML = '<div class="empty">No audit log entries</div>'; return; }
+    let html = '<table><thead><tr><th>Time</th><th>Tenant</th><th>Type</th><th>Duration</th><th>Count</th></tr></thead><tbody>';
+    logs.forEach(l => {
+      html += `<tr>
+        <td style="white-space:nowrap">${esc(l.timestamp)}</td>
+        <td>${esc(l.tenantId)}</td>
+        <td>${esc(l.queryType)}</td>
+        <td>${l.durationMs}ms</td>
+        <td>${l.resultCount != null ? l.resultCount : '-'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    body.innerHTML = html;
+  } catch (e) { body.innerHTML = '<div class="empty">Error: ' + esc(e.message) + '</div>'; }
+}
+
+document.getElementById('refresh-audit-btn').addEventListener('click', loadAuditLog);
+
+async function loadAll() {
+  if (!getApiKey()) { toast('Enter an API key', true); return; }
+  await Promise.all([loadTenants(), loadApiKeys(), loadAuditLog(), loadRateLimit()]);
+}
+
+// Init
+if (getApiKey()) loadAll();
+</script>
+</body>
+</html>

@@ -5,6 +5,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -25,9 +26,16 @@ public class TenantAccessEvaluator {
             return true;
         }
 
-        String details = authentication.getDetails() instanceof String
-                ? (String) authentication.getDetails()
-                : null;
+        String details = null;
+        Object detailsObj = authentication.getDetails();
+        if (detailsObj instanceof String) {
+            details = (String) detailsObj;
+        } else if (detailsObj instanceof Map) {
+            Object scopes = ((Map<?, ?>) detailsObj).get("tenantScopes");
+            if (scopes instanceof String) {
+                details = (String) scopes;
+            }
+        }
 
         if (details == null || details.isBlank() || WILDCARD.equals(details.trim())) {
             return true;

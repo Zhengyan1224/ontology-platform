@@ -6,32 +6,21 @@ import org.zhengyan.ontology.platform.engine.EngineRegistry;
 import org.zhengyan.ontology.platform.engine.OntologyEngine;
 import org.zhengyan.ontology.platform.model.CreateTenantRequest;
 import org.zhengyan.ontology.platform.model.Tenant;
-import org.zhengyan.ontology.platform.model.ApiKeyEntity;
 import org.zhengyan.ontology.platform.service.ApiKeyService;
-import org.zhengyan.ontology.platform.service.AuditService;
 import org.zhengyan.ontology.platform.service.CachedSparqlService;
 import org.zhengyan.ontology.platform.service.DynamicSchemaProvider;
-import org.zhengyan.ontology.platform.service.MetricsService;
-import org.zhengyan.ontology.platform.service.ObdaGeneratorService;
 import org.zhengyan.ontology.platform.service.OntologySchemaProvider;
 import org.zhengyan.ontology.platform.service.OntologyGraphService;
-import org.zhengyan.ontology.platform.service.OwlGeneratorService;
-import org.zhengyan.ontology.platform.service.QueryAuditLog;
 import org.zhengyan.ontology.platform.service.TenantConfigValidator;
 import org.zhengyan.ontology.platform.service.TenantPersistenceService;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -49,25 +38,18 @@ public class AdminController {
     private final OntologySchemaProvider schemaProvider;
     private final DynamicSchemaProvider dynamicSchemaProvider;
     private final ApiKeyService apiKeyService;
-    private final AuditService auditService;
     private final CachedSparqlService cachedSparqlService;
-    private final OwlGeneratorService owlGeneratorService;
-    private final ObdaGeneratorService obdaGeneratorService;
     private final OntologyGraphService ontologyGraphService;
     private final TenantPersistenceService tenantPersistenceService;
     private final TenantConfigValidator tenantConfigValidator;
 
-    @SuppressWarnings("java:S107")
     public AdminController(TenantConfig tenantConfig,
                            EngineRegistry engineRegistry,
                            OntologySchemaProvider schemaProvider,
                            DynamicSchemaProvider dynamicSchemaProvider,
                            ApiKeyService apiKeyService,
-                           AuditService auditService,
                            CachedSparqlService cachedSparqlService,
                            OntologyGraphService ontologyGraphService,
-                           OwlGeneratorService owlGeneratorService,
-                           ObdaGeneratorService obdaGeneratorService,
                            TenantPersistenceService tenantPersistenceService,
                            TenantConfigValidator tenantConfigValidator) {
         this.tenantConfig = tenantConfig;
@@ -75,13 +57,30 @@ public class AdminController {
         this.schemaProvider = schemaProvider;
         this.dynamicSchemaProvider = dynamicSchemaProvider;
         this.apiKeyService = apiKeyService;
-        this.auditService = auditService;
         this.cachedSparqlService = cachedSparqlService;
         this.ontologyGraphService = ontologyGraphService;
-        this.owlGeneratorService = owlGeneratorService;
-        this.obdaGeneratorService = obdaGeneratorService;
         this.tenantPersistenceService = tenantPersistenceService;
         this.tenantConfigValidator = tenantConfigValidator;
+    }
+
+    @GetMapping("/tenants/{tenantId}")
+    public ResponseEntity<?> getTenant(@PathVariable String tenantId) {
+        Tenant tenant = findTenant(tenantId);
+        if (tenant == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(KEY_ERROR, TENANT_NOT_FOUND));
+        }
+        OntologyEngine engine = engineRegistry.get(tenantId);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("id", tenant.getId());
+        m.put("name", tenant.getName());
+        m.put("jdbcUrl", tenant.getJdbcUrl());
+        m.put("jdbcDriver", tenant.getJdbcDriver());
+        m.put("jdbcUsername", tenant.getJdbcUsername());
+        m.put("owlPath", tenant.getOwlPath());
+        m.put("obdaPath", tenant.getObdaPath());
+        m.put("health", engine != null ? engine.checkHealth() : "not_initialized");
+        m.put("templateCount", schemaProvider.getSchemaForTenant(tenantId) != null ? 1 : 0);
+        return ResponseEntity.ok(m);
     }
 
     @GetMapping("/tenants")
@@ -223,64 +222,6 @@ public class AdminController {
         return ResponseEntity.ok(result);
     }
 
-    @Deprecated
-    @PostMapping("/tenants/{tenantId}/generate-owl")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> generateOwl(@PathVariable String tenantId) {
-        Tenant tenant = findTenant(tenantId);
-        if (tenant == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(KEY_ERROR, TENANT_NOT_FOUND));
-        }
-        try {
-            String owl = owlGeneratorService.generateOwl(tenant);
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put(KEY_TENANT_ID, tenantId);
-            result.put("owl", owl);
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            Map<String, Object> err = new LinkedHashMap<>();
-            err.put(KEY_ERROR, "OWL_GENERATION_FAILED");
-            err.put(KEY_MESSAGE, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
-        }
-    }
-
-    @PostMapping("/tenants/{tenantId}/generate-mapping")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> generateMapping(@PathVariable String tenantId) {
-        Tenant tenant = findTenant(tenantId);
-        if (tenant == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(KEY_ERROR, TENANT_NOT_FOUND));
-        }
-        try {
-            String owl = owlGeneratorService.generateOwl(tenant);
-            String obda = obdaGeneratorService.generateObda(tenant);
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-                ZipEntry owlEntry = new ZipEntry(tenantId + ".owl");
-                zos.putNextEntry(owlEntry);
-                zos.write(owl.getBytes());
-                zos.closeEntry();
-
-                ZipEntry obdaEntry = new ZipEntry(tenantId + ".obda");
-                zos.putNextEntry(obdaEntry);
-                zos.write(obda.getBytes());
-                zos.closeEntry();
-            }
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
-            headers.setContentDispositionFormData("attachment", tenantId + "-mapping.zip");
-            return ResponseEntity.ok().headers(headers).body(baos.toByteArray());
-        } catch (Exception e) {
-            Map<String, Object> err = new LinkedHashMap<>();
-            err.put(KEY_ERROR, "MAPPING_GENERATION_FAILED");
-            err.put(KEY_MESSAGE, e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
-        }
-    }
-
     @PostMapping("/tenants/{tenantId}/reinit")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> reinitialize(@PathVariable String tenantId) {
@@ -292,25 +233,6 @@ public class AdminController {
         return ResponseEntity.ok(result);
     }
 
-    @GetMapping("/audit-log")
-    public ResponseEntity<List<Map<String, Object>>> auditLog(
-            @RequestParam(required = false) String tenantId,
-            @RequestParam(required = false) String queryType,
-            @RequestParam(defaultValue = "100") int limit,
-            @RequestParam(defaultValue = "0") int offset) {
-        List<QueryAuditLog> logs = auditService.getLogs(tenantId, queryType, limit, offset);
-        return ResponseEntity.ok(logs.stream().map(this::logToMap).toList());
-    }
-
-    @PostMapping("/audit-log/clear")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, Object>> clearAuditLog() {
-        auditService.clearLogs();
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put(KEY_STATUS, "cleared");
-        return ResponseEntity.ok(result);
-    }
-
     @PostMapping("/cache/clear")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> clearCache() {
@@ -318,22 +240,6 @@ public class AdminController {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put(KEY_STATUS, "cache_cleared");
         return ResponseEntity.ok(result);
-    }
-
-    private Map<String, Object> logToMap(QueryAuditLog log) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("id", log.getId());
-        m.put(KEY_TENANT_ID, log.getTenantId());
-        m.put("queryType", log.getQueryType());
-        m.put("queryText", log.getQueryText());
-        m.put("generatedSparql", log.getGeneratedSparql());
-        m.put("translatedSql", log.getTranslatedSql());
-        m.put("durationMs", log.getDurationMs());
-        m.put("success", log.isSuccess());
-        m.put("errorMessage", log.getErrorMessage());
-        m.put("resultCount", log.getResultCount());
-        m.put("timestamp", log.getTimestamp());
-        return m;
     }
 
     @GetMapping("/api-keys")
@@ -373,7 +279,7 @@ public class AdminController {
     @PutMapping("/api-keys/{id}/toggle")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> toggleApiKey(@PathVariable Long id,
-                                                             @RequestParam boolean enabled) {
+                                                            @RequestParam boolean enabled) {
         boolean updated = apiKeyService.toggleKey(id, enabled);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", id);

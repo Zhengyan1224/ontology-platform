@@ -4,12 +4,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.zhengyan.ontology.platform.config.OwlGenerationProperties;
+import org.zhengyan.ontology.platform.exception.OwlGenerationException;
 import org.zhengyan.ontology.platform.model.Tenant;
 
 import java.io.StringWriter;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.util.*;
+import org.zhengyan.ontology.platform.config.OwlGenerationProperties.ColumnOverride;
+import org.zhengyan.ontology.platform.config.OwlGenerationProperties.TableOverride;
 
 @Service
 public class OwlGeneratorService {
@@ -26,7 +30,41 @@ public class OwlGeneratorService {
         this.metadataReader = metadataReader;
     }
 
-    public String generateOwl(Tenant tenant) throws Exception {
+    private String resolveClassName(String tableName) {
+        TableOverride override = namingProperties.getTableOverrides().get(tableName);
+        if (override != null && override.className() != null && !override.className().isBlank()) {
+            return override.className();
+        }
+        return NamingUtils.toClassName(tableName, namingProperties);
+    }
+
+    private String resolvePropertyName(String columnName, String tableName) {
+        TableOverride override = namingProperties.getTableOverrides().get(tableName);
+        if (override != null) {
+            ColumnOverride colOverride = override.columnOverrides().get(columnName);
+            if (colOverride != null && colOverride.propertyName() != null && !colOverride.propertyName().isBlank()) {
+                return colOverride.propertyName();
+            }
+        }
+        return NamingUtils.toPropertyName(columnName, tableName, namingProperties);
+    }
+
+    private boolean shouldExposeColumn(String columnName, String tableName) {
+        TableOverride override = namingProperties.getTableOverrides().get(tableName);
+        if (override != null) {
+            ColumnOverride colOverride = override.columnOverrides().get(columnName);
+            if (colOverride != null) return colOverride.expose();
+        }
+        return true;
+    }
+
+    private boolean shouldExposeTable(String tableName) {
+        TableOverride override = namingProperties.getTableOverrides().get(tableName);
+        if (override != null) return override.expose();
+        return true;
+    }
+
+    public String generateOwl(Tenant tenant) {
         try (Connection conn = DriverManager.getConnection(
                 tenant.getJdbcUrl(), tenant.getJdbcUsername(), tenant.getJdbcPassword())) {
 
@@ -44,7 +82,8 @@ public class OwlGeneratorService {
             Set<String> primaryKeys = metadataReader.readPrimaryKeys(conn, tenant);
 
             for (JdbcMetadataReader.TableInfo table : tables) {
-                String className = NamingUtils.toClassName(table.name, namingProperties);
+                if (!shouldExposeTable(table.name)) continue;
+                String className = resolveClassName(table.name);
                 sw.append("### ").append(table.name).append("\n");
                 sw.append(":").append(className).append(" rdf:type owl:Class ;\n");
                 sw.append(RDFS_LABEL).append(table.name).append("\" ;\n");
@@ -55,16 +94,19 @@ public class OwlGeneratorService {
             }
 
             for (JdbcMetadataReader.TableInfo table : tables) {
+                if (!shouldExposeTable(table.name)) continue;
+                String tableClassName = resolveClassName(table.name);
                 for (JdbcMetadataReader.ColumnInfo col : table.columns) {
-                    String propName = NamingUtils.toPropertyName(col.name, table.name, namingProperties);
+                    if (!shouldExposeColumn(col.name, table.name)) continue;
+                    String propName = resolvePropertyName(col.name, table.name);
 
                     String pkKey = table.name + "." + col.name;
                     boolean isPK = primaryKeys.contains(pkKey);
 
                     if (col.fkTargetTable != null) {
-                        String targetClass = NamingUtils.toClassName(col.fkTargetTable, namingProperties);
+                        String targetClass = resolveClassName(col.fkTargetTable);
                         sw.append(":").append(propName).append(" rdf:type owl:ObjectProperty ;\n");
-                        sw.append("    rdfs:domain :").append(NamingUtils.toClassName(table.name, namingProperties)).append(" ;\n");
+                        sw.append("    rdfs:domain :").append(tableClassName).append(" ;\n");
                         sw.append("    rdfs:range :").append(targetClass).append(" ;\n");
                         sw.append(RDFS_LABEL).append(col.name).append("\" .\n");
                         if (isPK) {
@@ -74,7 +116,7 @@ public class OwlGeneratorService {
                     } else {
                         String xsdType = NamingUtils.mapSqlTypeToXsd(col.sqlType);
                         sw.append(":").append(propName).append(" rdf:type owl:DatatypeProperty ;\n");
-                        sw.append("    rdfs:domain :").append(NamingUtils.toClassName(table.name, namingProperties)).append(" ;\n");
+                        sw.append("    rdfs:domain :").append(tableClassName).append(" ;\n");
                         sw.append("    rdfs:range ").append(xsdType).append(" ;\n");
                         sw.append(RDFS_LABEL).append(col.name).append("\" .\n");
                         if (isPK) {
@@ -86,6 +128,8 @@ public class OwlGeneratorService {
             }
 
             return sw.toString();
+        } catch (SQLException e) {
+            throw new OwlGenerationException("Failed to generate OWL for tenant: " + tenant.getId(), e);
         }
     }
 }

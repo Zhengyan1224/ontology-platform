@@ -58,15 +58,19 @@ SELECT ?book ?title ?authorName WHERE {
 | 能力 | 说明 |
 |------|------|
 | 多租户数据源 | 一个租户对应一个业务数据库、一套 OWL、一套 OBDA |
-| SPARQL 查询 | 面向本体模型查询，不直接暴露业务表结构 |
+| SPARQL 查询 | 支持 SELECT / CONSTRUCT / DESCRIBE / ASK 四种查询形式 |
 | SPARQL 到 SQL 翻译 | 基于 Ontop 自动把 SPARQL 改写成 SQL |
-| 自然语言查询 | LLM 生成 SPARQL，失败时可回退到模板规则 |
+| SPARQL 结果格式协商 | 支持 JSON、SPARQL JSON/XML、CSV、TSV、Turtle、RDF/XML、JSON-LD |
+| 自然语言查询 | LLM 生成 SPARQL，失败时可回退到模板规则；支持 SSE 流式响应 |
 | GraphQL 查询 | 提供 `/graphql` 查询入口 |
 | 简单本体推理 | 支持类继承、子属性等 RDFS/OWL 层面的基础推理 |
 | 本体图接口 | 可以把 OWL 中的类和属性转换成可视化图数据 |
-| 查询缓存和审计 | 缓存 SPARQL 结果，记录查询日志 |
-| API Key / JWT | 提供基础鉴权、租户访问控制和速率限制 |
-| OWL/OBDA 草稿生成 | 可基于 JDBC 元数据生成初版 OWL 和 OBDA 文件 |
+| 查询缓存和审计 | Caffeine 缓存 SPARQL 结果，支持按租户驱逐；记录查询日志和 SPARQL 查询历史 |
+| 查询历史 | 自动记录每个租户的 SPARQL 执行历史，支持浏览、重新执行和删除 |
+| API Key / JWT | 提供双因子鉴权、租户访问控制（scope）和 Bucket4j 速率限制 |
+| OWL/OBDA 草稿生成 | 可基于 JDBC 元数据生成初版 OWL/OBDA，并通过 LLM/规则助手输出解释、风险点和人工确认清单 |
+| OBDA 映射校验 | 自动解析 OBDA 中的 SQL 并在目标数据库验证表和字段是否存在 |
+| 联合查询 | 支持跨租户 SERVICE 查询，结果通过 VALUES 子句重写合并 |
 
 ## 核心概念
 
@@ -316,11 +320,7 @@ ontology:
 
 如果是一个全新的业务库，当前版本通常仍需要先准备最小 OWL/OBDA 文件并创建租户，之后再调用 `generate-mapping` 生成更完整的草稿。更理想的后续形态，是新增一个“输入 JDBC 连接信息，直接生成 OWL/OBDA 草稿”的接入向导接口。
 
-项目也提供了一个 LLM 辅助草稿评审接口和页面：
-
-```http
-POST /api/v1/tenants/{tenantId}/mapping-assistant/draft
-```
+项目也提供了一个 LLM/规则草稿评审助手。它的定位不是“自动改生产映射”，而是“读取数据库元数据后，生成可 review 的 OWL/OBDA 草稿，并解释风险和下一步需要人工确认的事项”。
 
 页面地址：
 
@@ -328,7 +328,74 @@ POST /api/v1/tenants/{tenantId}/mapping-assistant/draft
 http://localhost:8080/mapping-assistant/index.html
 ```
 
-这个接口需要管理员权限。它会生成 OWL/OBDA 草稿，并返回 LLM 或规则模式下的说明、命名建议、敏感字段风险和人工确认清单。它不会写入 `.owl` / `.obda` 文件，也不会自动修改生产租户配置。
+接口地址：
+
+```http
+POST /api/v1/tenants/{tenantId}/mapping-assistant/draft
+```
+
+权限要求：
+
+```text
+需要管理员权限。开发环境可以使用 API Key：admin-key-001
+```
+
+请求示例：
+
+```json
+{
+  "businessContext": "商品中心，products 是商品主表，categories 是类目表。",
+  "focus": "security",
+  "includeDraftFiles": true,
+  "useLlm": true,
+  "maxPromptChars": 14000
+}
+```
+
+字段说明：
+
+| 字段 | 说明 |
+|------|------|
+| `businessContext` | 可选。补充业务背景，帮助 LLM 更准确理解表和字段 |
+| `focus` | 可选。评审重点，例如 `general`、`naming`、`security`、`quality` |
+| `includeDraftFiles` | 是否在响应里返回完整 `owlDraft` 和 `obdaDraft` |
+| `useLlm` | 是否尝试调用 LLM。没有配置有效 `LLM_API_KEY` 时会自动回退到规则模式 |
+| `maxPromptChars` | 发送给 LLM 的最大上下文长度，避免元数据过大 |
+
+响应里重点看这些字段：
+
+| 字段 | 说明 |
+|------|------|
+| `mode` | `llm` 或 `rules`，表示本次评审来自 LLM 还是规则回退 |
+| `llmAvailable` | 当前是否真的调用了 LLM |
+| `draftOnly` | 固定为 `true`，表示只生成草稿 |
+| `applied` | 固定为 `false`，表示不会自动应用到项目配置或生产映射 |
+| `metadataSummary` | 从 JDBC 读取到的表、字段、主键、外键摘要 |
+| `reviewMarkdown` | 面向人的评审说明、命名建议和风险提示 |
+| `warnings` | 规则识别出的风险，例如敏感字段、缺少主键、缺少外键 |
+| `nextSteps` | 建议人工继续确认或修改的事项 |
+| `owlDraft` | 生成的 OWL 草稿，`includeDraftFiles=true` 时返回 |
+| `obdaDraft` | 生成的 OBDA 草稿，`includeDraftFiles=true` 时返回 |
+
+推荐使用流程：
+
+1. 启动服务后打开 `http://localhost:8080/mapping-assistant/index.html`。
+2. 在页面里输入管理员 API Key，例如开发环境的 `admin-key-001`。
+3. 选择要分析的租户。
+4. 填写业务背景和评审重点。
+5. 生成草稿，先看 `Warnings`、`Next steps` 和 `Review`。
+6. 人工确认类名、属性名、敏感字段、权限边界和 OBDA SQL 后，再决定是否把草稿保存成正式 `.owl` / `.obda` 文件。
+
+它有几个刻意设计的边界：
+
+```text
+不会写入 .owl / .obda 文件
+不会修改 application.yml
+不会更新已保存的租户配置
+不会绕过人工 review 直接上线
+```
+
+如果配置了有效的 OpenAI 兼容接口，助手会调用 LLM 生成更容易阅读的评审说明；如果 `LLM_API_KEY` 为空或仍是 `sk-placeholder`，它会自动使用规则模式，仍然可以生成 OWL/OBDA 草稿和基础风险提示。
 
 后续接入 LLM 后，可以做得更像一个业务接入向导：
 
@@ -424,11 +491,19 @@ java -jar target/ontology-platform-1.0.0-SNAPSHOT.jar --server.port=8081
 
 | 地址 | 说明 |
 |------|------|
+| `http://localhost:8080/` | 平台首页，所有功能入口 |
+| `http://localhost:8080/admin/` | 管理控制台：租户 CRUD、API Key、缓存、审计日志 |
+| `http://localhost:8080/tenant/?id=sample` | SPARQL 查询编辑器，支持 SELECT / CONSTRUCT / DESCRIBE / ASK |
+| `http://localhost:8080/saved-queries/` | 已保存 SPARQL 查询，支持保存、分享、删除 |
+| `http://localhost:8080/query-history/` | SPARQL 查询历史浏览，支持按租户查看、重新执行和删除 |
+| `http://localhost:8080/nlq/` | 自然语言查询多轮对话页面 |
+| `http://localhost:8080/nlq-examples/` | 每个租户的 few-shot 示例查看 |
+| `http://localhost:8080/graphql-playground/` | GraphQL 交互式查询控制台 |
+| `http://localhost:8080/ontology-viz/index.html` | 本体可视化：类和属性关系图 |
+| `http://localhost:8080/mapping-assistant/index.html` | OWL/OBDA 草稿生成与 LLM/规则评审 |
 | `http://localhost:8080/api/v1/health` | 健康检查 |
 | `http://localhost:8080/swagger-ui.html` | Swagger UI |
 | `http://localhost:8080/h2-console` | H2 Console |
-| `http://localhost:8080/ontology-viz/index.html` | 本体可视化页面 |
-| `http://localhost:8080/mapping-assistant/index.html` | OWL/OBDA 草稿生成与 LLM 评审页面 |
 
 默认平台库使用 H2 文件模式：
 
@@ -456,6 +531,8 @@ Password: 留空
 |---------|------|------|
 | `admin-key-001` | `ROLE_ADMIN` | 管理接口 |
 | `dev-key-002` | `ROLE_DEV` | 普通查询接口 |
+
+本体可视化和 Mapping Assistant 的静态页面可以直接打开；页面调用后端 API 时仍需要填写 API Key。Mapping Assistant 会读取数据库元数据并生成映射草稿，因此必须使用管理员权限，`dev-key-002` 不够。
 
 示例 SPARQL 查询：
 
@@ -507,29 +584,63 @@ ontology.auth.api-keys
 | `DELETE` | `/api/v1/tenants/{id}` | 删除租户，需要管理员权限 |
 | `GET` | `/api/v1/tenants/{id}/schema` | 查看租户的本体和映射摘要 |
 | `POST` | `/api/v1/tenants/{id}/reinit` | 重新初始化租户引擎，需要管理员权限 |
-| `POST` | `/api/v1/tenants/{id}/sparql` | 执行 SPARQL 查询 |
+| `POST` | `/api/v1/tenants/{id}/sparql` | 执行 SPARQL 查询（SELECT / CONSTRUCT / DESCRIBE / ASK） |
 | `POST` | `/api/v1/tenants/{id}/sparql/explain` | 查看 SPARQL 被翻译成什么 SQL |
+| `GET` | `/api/v1/tenants/{id}/mapping/owl` | 下载 OWL Turtle 文件，需要管理员权限 |
+| `GET` | `/api/v1/tenants/{id}/mapping/obda` | 下载 OBDA 映射文件，需要管理员权限 |
+| `GET` | `/api/v1/tenants/{id}/mapping/validate` | 校验 OBDA 映射中的 SQL 表和字段，需要管理员权限 |
+| `GET` | `/api/v1/tenants/{id}/query-history` | 查询该租户的 SPARQL 执行历史，需要管理员权限 |
 | `POST` | `/api/v1/tenants/{id}/nlq` | 自然语言查询 |
 | `GET` | `/api/v1/tenants/{id}/nlq/stream` | 自然语言查询 SSE 流式响应 |
+| `GET` | `/api/v1/tenants/{id}/nlq/examples` | 查看租户的 NLQ few-shot 示例 |
 | `GET` | `/api/v1/tenants/{id}/graph` | 获取本体可视化图数据 |
-| `POST` | `/api/v1/tenants/{id}/generate-mapping` | 基于数据库元数据生成 OWL + OBDA ZIP，需要管理员权限 |
+| `POST` | `/api/v1/tenants/{id}/generate-mapping` | 基于数据库元数据生成 OWL + OBDA 的 ZIP 包，需要管理员权限 |
+| `POST` | `/api/v1/tenants/{id}/generate-owl` | （已废弃）仅生成 OWL，需要管理员权限 |
 | `POST` | `/api/v1/tenants/{id}/mapping-assistant/draft` | 生成 OWL/OBDA 草稿并返回 LLM/规则评审，需要管理员权限 |
-| `GET` | `/api/v1/audit-log` | 查询审计日志 |
+| `GET` | `/api/v1/audit-log` | 查询审计日志（分页、按租户过滤），需要管理员权限 |
+| `POST` | `/api/v1/audit-log/clear` | 清空审计日志，需要管理员权限 |
 | `GET` | `/api/v1/api-keys` | 查看 API Key，需要管理员权限 |
 | `POST` | `/api/v1/api-keys` | 创建 API Key，需要管理员权限 |
+| `POST` | `/api/v1/saved-queries` | 保存 SPARQL 查询（附分享 token） |
+| `GET` | `/api/v1/saved-queries/{shareToken}` | 通过分享 token 查看已保存查询 |
+| `GET` | `/api/v1/tenants/{id}/saved-queries` | 按租户列出已保存查询（分页） |
+| `DELETE` | `/api/v1/saved-queries/{id}` | 删除已保存查询 |
+| `DELETE` | `/api/v1/query-history/{id}` | 删除指定 SPARQL 查询历史记录，需要管理员权限 |
+| `POST` | `/api/v1/cache/evict` | 清空所有缓存，需要管理员权限 |
+| `GET` | `/api/v1/rate-limit/status` | 查看当前速率限制状态 |
 | `POST` | `/graphql` | GraphQL 查询入口 |
 
 ### SPARQL 返回格式
 
-`POST /api/v1/tenants/{id}/sparql` 可以通过 `Accept` 请求头选择返回格式：
+`POST /api/v1/tenants/{id}/sparql` 可以通过 `Accept` 请求头选择返回格式。
+
+SELECT 查询支持的格式：
 
 | `Accept` | 返回格式 |
 |----------|----------|
-| `application/json` | 默认 JSON |
+| `application/json` | 默认 JSON（含 queryType、variables、results） |
 | `application/sparql-results+json` | SPARQL JSON |
 | `application/sparql-results+xml` | SPARQL XML |
 | `text/csv` | CSV |
 | `text/tab-separated-values` | TSV |
+
+CONSTRUCT / DESCRIBE 查询支持的格式：
+
+| `Accept` | 返回格式 |
+|----------|----------|
+| `text/turtle` | Turtle |
+| `application/rdf+xml` | RDF/XML |
+| `application/ld+json` | JSON-LD |
+| `application/json` | 默认 JSON（含 queryType、graphModel） |
+
+ASK 查询支持的格式：
+
+| `Accept` | 返回格式 |
+|----------|----------|
+| `application/json` | 默认 JSON（含 booleanQueryResult、queryType） |
+| `application/sparql-results+json` | SPARQL JSON |
+
+如果 `Accept` 与查询类型不匹配（例如 CONSTRUCT 请求 `text/csv`），返回 `406 Not Acceptable`。
 
 ## 能力边界
 
@@ -539,9 +650,9 @@ ontology.auth.api-keys
 |------|------|
 | 不是数据同步工具 | 它默认不复制业务数据，而是在查询时通过 Ontop 改写 SQL 访问原库 |
 | 不是完整图数据库 | RDF 视图是虚拟的，查询性能取决于 SPARQL 改写后的 SQL 和业务库索引 |
-| 主要面向读取查询 | 当前重点是 `SELECT` 查询；`CONSTRUCT`、`DESCRIBE` 有基础支持，`ASK`、SPARQL Update 不是当前重点 |
+| 主要面向读取查询 | 当前支持 `SELECT`、`CONSTRUCT`、`DESCRIBE`、`ASK` 四种查询形式；SPARQL Update 不在当前范围 |
 | 推理能力有限 | 适合类继承、子属性等轻量语义推理，不等价于完整 OWL DL 推理机 |
-| 自动生成只是草稿 | 元数据生成不能完全理解业务语义，生成的 OWL/OBDA 需要人工 review |
+| 自动生成只是草稿 | 元数据生成不能完全理解业务语义，Mapping Assistant 也只返回草稿和评审建议，不会自动写入生产 OWL/OBDA |
 | 换数据库仍需验证 | OBDA 的 `source` SQL 会发给目标数据库执行。标准 SQL 可迁移性更好，数据库特有函数仍要调整 |
 | 默认只带 H2 驱动 | PostgreSQL、MySQL、SQL Server 等需要在 `pom.xml` 增加对应 JDBC Driver |
 | NLQ 不保证总是正确 | LLM 生成的 SPARQL 需要通过 schema、模板、示例、审计和 explain 逐步约束 |
@@ -555,7 +666,16 @@ ontology.auth.api-keys
 | `src/main/resources/ontologies/` | 示例 OWL 和 OBDA 文件 |
 | `src/main/resources/db/` | 启动初始化 SQL |
 | `src/main/resources/nlq-templates/` | 自然语言查询模板、prompt 和 few-shot 示例 |
-| `src/main/resources/static/ontology-viz/` | 本体可视化静态页面 |
+| `src/main/resources/static/` | 全部前端静态页面（零构建） |
+| `src/main/resources/static/admin/` | 管理控制台页面 |
+| `src/main/resources/static/tenant/` | SPARQL 查询编辑器页面 |
+| `src/main/resources/static/saved-queries/` | 已保存查询页面 |
+| `src/main/resources/static/query-history/` | 查询历史页面 |
+| `src/main/resources/static/nlq/` | 自然语言查询页面 |
+| `src/main/resources/static/nlq-examples/` | NLQ few-shot 示例页面 |
+| `src/main/resources/static/graphql-playground/` | GraphQL 交互式控制台页面 |
+| `src/main/resources/static/ontology-viz/` | 本体可视化页面 |
+| `src/main/resources/static/mapping-assistant/` | OWL/OBDA 草稿生成和 LLM/规则评审页面 |
 | `docs/roadmap.md` | 开发路线图 |
 | `docs/future-directions.md` | 后续演进方向 |
 

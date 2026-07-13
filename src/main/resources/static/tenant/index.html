@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tenant Detail</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #202636; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: #182033; color: #f5f7fb; position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 18px; margin: 0; }
+header a { color: #c8d0dc; text-decoration: none; font-size: 14px; }
+header a:hover { color: #fff; }
+header input { padding: 6px 10px; border: 1px solid #44506a; border-radius: 4px; background: #111a2d; color: #f5f7fb; font-size: 14px; }
+header button { padding: 6px 12px; border: 1px solid #2868d8; border-radius: 4px; background: #2868d8; color: #fff; cursor: pointer; }
+main { max-width: 800px; margin: 0 auto; padding: 24px 20px; }
+.card { background: #fff; border: 1px solid #dce3ee; border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+.card h2 { margin: 0; padding: 14px 18px; font-size: 15px; background: #f0f3f8; border-bottom: 1px solid #dce3ee; }
+.card-body { padding: 14px 18px; }
+.field-row { display: grid; grid-template-columns: 140px 1fr; gap: 8px; padding: 6px 0; font-size: 14px; }
+.field-row .label { color: #637083; font-weight: 500; }
+.field-row input { width: 100%; padding: 4px 8px; border: 1px solid #c8d1df; border-radius: 4px; }
+button { font: inherit; cursor: pointer; padding: 6px 12px; border: 1px solid #2868d8; border-radius: 4px; background: #2868d8; color: #fff; }
+button.danger { background: #d32f2f; border-color: #d32f2f; }
+button.secondary { background: #fff; color: #202636; border-color: #c8d1df; }
+.toolbar { display: flex; gap: 8px; }
+.status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.status-up { background: #e8f5e9; color: #2e7d32; }
+.status-down { background: #fce4ec; color: #c62828; }
+.status-unknown { background: #fff3e0; color: #e65100; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 14px; z-index: 200; }
+.toast.error { background: #c62828; }
+a { color: #2868d8; text-decoration: none; }
+a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&#8592; Home</a>
+  <h1 id="title">Tenant</h1>
+  <input id="api-key" type="password" placeholder="API Key" autocomplete="off" style="width:160px;margin-left:auto;">
+</header>
+<main>
+  <div class="card">
+    <h2>Overview</h2>
+    <div class="card-body">
+      <div class="field-row"><span class="label">ID</span><span id="td-id"></span></div>
+      <div class="field-row"><span class="label">Name</span><span id="td-name"></span></div>
+      <div class="field-row"><span class="label">Health</span><span id="td-health"></span></div>
+      <div class="field-row"><span class="label">JDBC URL</span><span id="td-jdbc-url" style="font-family:monospace;font-size:12px;word-break:break-all;"></span></div>
+      <div class="field-row"><span class="label">Driver</span><span id="td-driver"></span></div>
+      <div class="field-row"><span class="label">Username</span><span id="td-username"></span></div>
+      <div class="field-row"><span class="label">OWL</span><span id="td-owl" style="font-family:monospace;font-size:12px;"></span></div>
+      <div class="field-row"><span class="label">OBDA</span><span id="td-obda" style="font-family:monospace;font-size:12px;"></span></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Actions</h2>
+    <div class="card-body">
+      <div class="toolbar">
+        <button id="reinit-btn">Reinitialize Engine</button>
+        <button id="gen-owl-btn" class="secondary">Download OWL</button>
+        <button id="gen-obda-btn" class="secondary">Download OBDA</button>
+        <button id="gen-mapping-btn" class="secondary">Download ZIP</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Edit</h2>
+    <div class="card-body">
+      <div class="field-row"><span class="label">Name</span><input id="edit-name"></div>
+      <div class="field-row"><span class="label">JDBC URL</span><input id="edit-jdbc-url"></div>
+      <div class="field-row"><span class="label">Driver</span><input id="edit-driver"></div>
+      <div class="field-row"><span class="label">Username</span><input id="edit-username"></div>
+      <div class="field-row"><span class="label">Password</span><input id="edit-password" type="password"></div>
+      <div class="field-row"><span class="label">OWL Path</span><input id="edit-owl"></div>
+      <div class="field-row"><span class="label">OBDA Path</span><input id="edit-obda"></div>
+      <div class="toolbar" style="margin-top:12px;">
+        <button id="save-btn">Save Changes</button>
+        <button id="delete-btn" class="danger">Delete Tenant</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>SPARQL Query</h2>
+    <div class="card-body">
+      <textarea id="sparql-input" style="width:100%;min-height:100px;font-family:monospace;font-size:13px;padding:8px;border:1px solid #c8d1df;border-radius:4px;resize:vertical;" placeholder="Enter SPARQL query..."></textarea>
+      <div class="toolbar" style="margin-top:8px;">
+        <button id="sparql-exec-btn">Execute</button>
+        <span id="sparql-exec-time" style="font-size:12px;color:#637083;margin-left:8px;align-self:center;"></span>
+      </div>
+      <div id="sparql-results" style="margin-top:12px;"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const API_BASE = '/api/v1';
+const KEY_STORAGE = 'tenant-api-key';
+const params = new URLSearchParams(window.location.search);
+const tenantId = params.get('id');
+
+function getApiKey() { return document.getElementById('api-key').value.trim(); }
+function authHeaders(json) {
+  const h = {};
+  if (getApiKey()) h['X-API-Key'] = getApiKey();
+  if (json) h['Content-Type'] = 'application/json';
+  return h;
+}
+function toast(msg, err) {
+  const e = document.createElement('div'); e.className = 'toast' + (err ? ' error' : ''); e.textContent = msg; document.body.appendChild(e); setTimeout(() => e.remove(), 3000);
+}
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) { let m = res.statusText; try { const b = await res.json(); m = b.message || b.error || m; } catch {} throw new Error(m); }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+document.getElementById('api-key').value = localStorage.getItem(KEY_STORAGE) || '';
+document.getElementById('api-key').addEventListener('change', function () {
+  localStorage.setItem(KEY_STORAGE, this.value.trim());
+  loadTenant();
+});
+
+async function loadTenant() {
+  if (!tenantId) { document.getElementById('title').textContent = 'No tenant specified'; return; }
+  document.getElementById('title').textContent = 'Tenant: ' + tenantId;
+  try {
+    const t = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId), { headers: authHeaders(false) });
+    document.getElementById('td-id').textContent = esc(t.id);
+    document.getElementById('td-name').textContent = esc(t.name);
+    const healthClass = t.health === 'up' ? 'status-up' : t.health === 'not_initialized' ? 'status-unknown' : 'status-down';
+    document.getElementById('td-health').innerHTML = '<span class="status-badge ' + healthClass + '">' + esc(t.health) + '</span>';
+    document.getElementById('td-jdbc-url').textContent = esc(t.jdbcUrl);
+    document.getElementById('td-driver').textContent = esc(t.jdbcDriver);
+    document.getElementById('td-username').textContent = esc(t.jdbcUsername);
+    document.getElementById('td-owl').textContent = esc(t.owlPath);
+    document.getElementById('td-obda').textContent = esc(t.obdaPath);
+    document.getElementById('edit-name').value = t.name || '';
+    document.getElementById('edit-jdbc-url').value = t.jdbcUrl || '';
+    document.getElementById('edit-driver').value = t.jdbcDriver || '';
+    document.getElementById('edit-username').value = t.jdbcUsername || '';
+    document.getElementById('edit-password').value = '';
+    document.getElementById('edit-owl').value = t.owlPath || '';
+    document.getElementById('edit-obda').value = t.obdaPath || '';
+  } catch (e) { toast('Load failed: ' + e.message, true); }
+}
+
+document.getElementById('reinit-btn').addEventListener('click', async () => {
+  try {
+    const r = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/reinit', { method: 'POST', headers: authHeaders(false) });
+    toast(r.status || 'Reinitialized');
+    loadTenant();
+  } catch (e) { toast(e.message, true); }
+});
+
+document.getElementById('gen-owl-btn').addEventListener('click', () => {
+  window.open(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/mapping/owl', '_blank');
+});
+
+document.getElementById('gen-obda-btn').addEventListener('click', () => {
+  window.open(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/mapping/obda', '_blank');
+});
+
+document.getElementById('gen-mapping-btn').addEventListener('click', () => {
+  window.open(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/generate-mapping', '_blank');
+});
+
+document.getElementById('save-btn').addEventListener('click', async () => {
+  const body = {
+    id: tenantId,
+    name: document.getElementById('edit-name').value,
+    jdbcUrl: document.getElementById('edit-jdbc-url').value,
+    jdbcDriver: document.getElementById('edit-driver').value,
+    jdbcUsername: document.getElementById('edit-username').value,
+    jdbcPassword: document.getElementById('edit-password').value || '',
+    owlPath: document.getElementById('edit-owl').value,
+    obdaPath: document.getElementById('edit-obda').value
+  };
+  try {
+    const r = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId), { method: 'PUT', headers: authHeaders(true), body: JSON.stringify(body) });
+    toast(r.status || 'Saved');
+    loadTenant();
+  } catch (e) { toast(e.message, true); }
+});
+
+document.getElementById('delete-btn').addEventListener('click', async () => {
+  if (!confirm('Delete tenant "' + tenantId + '"?')) return;
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId), { method: 'DELETE', headers: authHeaders(false) });
+    toast('Deleted');
+    setTimeout(() => window.location.href = '/admin/', 1000);
+  } catch (e) { toast(e.message, true); }
+});
+
+// SPARQL Query
+document.getElementById('sparql-exec-btn').addEventListener('click', async () => {
+  const sparql = document.getElementById('sparql-input').value.trim();
+  if (!sparql) { toast('Enter a SPARQL query', true); return; }
+  const resultsDiv = document.getElementById('sparql-results');
+  const execTime = document.getElementById('sparql-exec-time');
+  resultsDiv.innerHTML = '<em style="color:#637083;">Executing...</em>';
+  execTime.textContent = '';
+  try {
+    const start = performance.now();
+    const body = JSON.stringify({ query: sparql });
+    const res = await fetch(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/sparql', {
+      method: 'POST',
+      headers: authHeaders(true),
+      body: body
+    });
+    const elapsed = ((performance.now() - start) / 1000).toFixed(2);
+    if (!res.ok) {
+      const err = await res.json();
+      resultsDiv.innerHTML = '<div style="color:#c62828;">Error: ' + esc(err.message || err.error || res.statusText) + '</div>';
+      return;
+    }
+    const data = await res.json();
+    execTime.textContent = elapsed + 's';
+
+    if (data.queryType === 'BOOLEAN' || data.booleanQueryResult !== undefined) {
+      const val = data.booleanQueryResult;
+      resultsDiv.innerHTML = '<div style="text-align:center;padding:20px;"><span class="status-badge ' + (val ? 'status-up' : 'status-down') + '" style="font-size:18px;padding:6px 20px;">' + val + '</span></div>';
+    } else if (data.graphModel) {
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f0f3f8;"><th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;">Triples</th></tr></thead><tbody>';
+      const count = Array.isArray(data.graphModel) ? data.graphModel.length : (data.graphModel || '').split('\n').filter(l => l.trim()).length;
+      html += '<tr><td style="padding:8px 10px;border-bottom:1px solid #eef2f7;">' + count + ' triples</td></tr>';
+      html += '</tbody></table>';
+      resultsDiv.innerHTML = html;
+    } else if (data.variables && data.results) {
+      const vars = data.variables;
+      const rows = data.results;
+      let html = '<div style="font-size:12px;color:#637083;margin-bottom:6px;">' + rows.length + ' row(s)</div>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f0f3f8;">';
+      vars.forEach(v => { html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;white-space:nowrap;">' + esc(v) + '</th>'; });
+      html += '</tr></thead><tbody>';
+      rows.forEach(r => {
+        html += '<tr>';
+        vars.forEach(v => { html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;max-width:300px;overflow:hidden;text-overflow:ellipsis;">' + esc(r[v]) + '</td>'; });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      resultsDiv.innerHTML = html;
+    } else {
+      resultsDiv.innerHTML = '<em style="color:#637083;">No results</em>';
+    }
+  } catch (e) { resultsDiv.innerHTML = '<div style="color:#c62828;">Error: ' + esc(e.message) + '</div>'; }
+});
+
+if (getApiKey()) loadTenant();
+</script>
+</body>
+</html>

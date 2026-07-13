@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Saved Queries</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f7fb; color: #202636; }
+header { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: #182033; color: #f5f7fb; position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+header h1 { font-size: 18px; margin: 0; }
+header a { color: #c8d0dc; text-decoration: none; font-size: 14px; }
+header a:hover { color: #fff; }
+header input, header select { padding: 6px 10px; border: 1px solid #44506a; border-radius: 4px; background: #111a2d; color: #f5f7fb; font-size: 14px; }
+header button { padding: 6px 12px; border: 1px solid #2868d8; border-radius: 4px; background: #2868d8; color: #fff; cursor: pointer; }
+button { font: inherit; cursor: pointer; padding: 6px 12px; border: 1px solid #2868d8; border-radius: 4px; background: #2868d8; color: #fff; }
+button.secondary { background: #fff; color: #202636; border-color: #c8d1df; }
+button.danger { background: #d32f2f; color: #fff; border-color: #d32f2f; }
+button.small { padding: 3px 8px; font-size: 12px; }
+main { max-width: 960px; margin: 0 auto; padding: 20px; }
+.card { background: #fff; border: 1px solid #dce3ee; border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+.card h2 { margin: 0; padding: 14px 18px; font-size: 15px; background: #f0f3f8; border-bottom: 1px solid #dce3ee; }
+.card-body { padding: 14px 18px; }
+.empty { padding: 30px; text-align: center; color: #748095; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #edf1f6; }
+th { font-weight: 600; color: #42526a; background: #f8fafc; white-space: nowrap; }
+td { vertical-align: middle; }
+pre { background: #f8f9fc; border: 1px solid #e4e8f0; border-radius: 4px; padding: 8px; font-family: monospace; font-size: 12px; white-space: pre-wrap; margin: 6px 0; }
+.status { color: #536174; font-size: 13px; margin-bottom: 8px; }
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 14px; z-index: 200; }
+.toast.error { background: #c62828; }
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+.modal-overlay.open { display: flex; }
+.modal { background: #fff; border-radius: 8px; padding: 24px; min-width: 400px; max-width: 600px; box-shadow: 0 8px 30px rgba(0,0,0,0.2); }
+.modal h3 { margin: 0 0 12px; font-size: 16px; }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.field label { font-size: 13px; color: #637083; }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <a href="/">&#8592; Home</a>
+  <h1>Saved Queries</h1>
+  <input id="api-key" type="password" placeholder="API Key" autocomplete="off" style="width:160px;">
+  <label for="tenant-select">Tenant</label>
+  <select id="tenant-select"></select>
+  <button id="refresh-btn" class="secondary">Refresh</button>
+  <button id="add-btn" class="primary">+ Save Current Query</button>
+</header>
+<main>
+  <div class="card">
+    <h2>Saved SPARQL Queries</h2>
+    <div class="card-body" id="query-list"><div class="empty">Select a tenant to load saved queries</div></div>
+  </div>
+</main>
+
+<div id="save-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>Save Query</h3>
+    <div class="field"><label>Question (optional)</label><input id="save-question" placeholder="e.g. List all books"></div>
+    <div class="field"><label>SPARQL</label><textarea id="save-sparql" style="min-height:80px;padding:8px;border:1px solid #c8d1df;border-radius:4px;font-family:monospace;font-size:12px;"></textarea></div>
+    <div class="field"><label>Result Summary (optional)</label><input id="save-summary" placeholder="e.g. 42 results, 3 columns"></div>
+    <div class="field"><label>Tenant</label><span id="save-tenant" style="font-weight:600;"></span></div>
+    <div class="form-actions">
+      <button id="save-modal-cancel" class="secondary">Cancel</button>
+      <button id="save-modal-confirm">Save</button>
+    </div>
+    <div id="save-result" style="display:none;margin-top:12px;padding:12px;background:#e8f5e9;border-radius:4px;">
+      <strong>Saved!</strong><br>
+      Share URL: <a id="save-share-url" href="" target="_blank"></a>
+      <br><code id="save-share-token" style="font-size:12px;"></code>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = '/api/v1';
+const KEY_STORAGE = 'saved-queries-api-key';
+
+function getApiKey() { return document.getElementById('api-key').value.trim(); }
+function authHeaders(json) {
+  const h = {};
+  if (getApiKey()) h['X-API-Key'] = getApiKey();
+  if (json) h['Content-Type'] = 'application/json';
+  return h;
+}
+function toast(msg, err) {
+  const e = document.createElement('div'); e.className = 'toast' + (err ? ' error' : ''); e.textContent = msg; document.body.appendChild(e); setTimeout(() => e.remove(), 3000);
+}
+function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  if (!res.ok) { let m = res.statusText; try { const b = await res.json(); m = b.message || b.error || m; } catch {} throw new Error(m); }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+document.getElementById('api-key').value = localStorage.getItem(KEY_STORAGE) || '';
+document.getElementById('api-key').addEventListener('change', function () {
+  localStorage.setItem(KEY_STORAGE, this.value.trim());
+  loadTenants();
+});
+
+async function loadTenants() {
+  const select = document.getElementById('tenant-select');
+  select.innerHTML = '';
+  if (!getApiKey()) return;
+  try {
+    const tenants = await api(API_BASE + '/tenants', { headers: authHeaders(false) });
+    tenants.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.id; opt.textContent = t.name || t.id;
+      select.appendChild(opt);
+    });
+    if (tenants.length) loadQueries(tenants[0].id);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function loadQueries(tenantId) {
+  const el = document.getElementById('query-list');
+  if (!tenantId) { el.innerHTML = '<div class="empty">Select a tenant</div>'; return; }
+  try {
+    const data = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/saved-queries', { headers: authHeaders(false) });
+    const queries = data.queries || data;
+    if (!queries.length) { el.innerHTML = '<div class="empty">No saved queries for this tenant</div>'; return; }
+    let html = '<div style="font-size:12px;color:#637083;margin-bottom:6px;">' + data.total + ' total</div>';
+    html += '<table><thead><tr><th>Question</th><th>SPARQL</th><th>Share</th><th>Created</th><th></th></tr></thead><tbody>';
+    queries.forEach(q => {
+      html += '<tr>' +
+        '<td>' + esc(q.question || '-') + '</td>' +
+        '<td><pre style="margin:0;max-width:300px;">' + esc(q.sparql) + '</pre></td>' +
+        '<td><code style="font-size:11px;">' + esc(q.shareToken || '').slice(0, 8) + '...</code><br>' +
+          '<button class="small secondary" onclick="copyShareUrl(\'' + esc(q.shareToken) + '\')">Copy Link</button></td>' +
+        '<td style="white-space:nowrap;font-size:11px;">' + esc(q.createdAt || '').slice(0, 16).replace('T', ' ') + '</td>' +
+        '<td><button class="small danger" onclick="deleteQuery(' + q.id + ')">Delete</button></td>' +
+        '</tr>';
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch (e) { el.innerHTML = '<div class="empty">Error: ' + esc(e.message) + '</div>'; }
+}
+
+function copyShareUrl(token) {
+  const url = window.location.origin + '/api/v1/saved-queries/' + token;
+  navigator.clipboard.writeText(url).then(() => toast('Link copied'), () => toast('Copy failed', true));
+}
+
+async function deleteQuery(id) {
+  if (!confirm('Delete this saved query?')) return;
+  try {
+    await api(API_BASE + '/saved-queries/' + id, { method: 'DELETE', headers: authHeaders(false) });
+    toast('Deleted');
+    const tenantId = document.getElementById('tenant-select').value;
+    if (tenantId) loadQueries(tenantId);
+  } catch (e) { toast(e.message, true); }
+}
+
+document.getElementById('tenant-select').addEventListener('change', e => loadQueries(e.target.value));
+document.getElementById('refresh-btn').addEventListener('click', () => {
+  const t = document.getElementById('tenant-select').value;
+  if (t) loadQueries(t);
+});
+
+const saveModal = document.getElementById('save-modal');
+document.getElementById('add-btn').addEventListener('click', () => {
+  const tenantId = document.getElementById('tenant-select').value;
+  if (!tenantId) { toast('Select a tenant first', true); return; }
+  document.getElementById('save-tenant').textContent = tenantId;
+  document.getElementById('save-question').value = '';
+  document.getElementById('save-sparql').value = '';
+  document.getElementById('save-summary').value = '';
+  document.getElementById('save-result').style.display = 'none';
+  document.getElementById('save-modal-confirm').style.display = '';
+  saveModal.classList.add('open');
+});
+document.getElementById('save-modal-cancel').addEventListener('click', () => saveModal.classList.remove('open'));
+document.getElementById('save-modal-confirm').addEventListener('click', async () => {
+  const tenantId = document.getElementById('tenant-select').value;
+  const body = {
+    tenantId: tenantId,
+    question: document.getElementById('save-question').value.trim(),
+    sparql: document.getElementById('save-sparql').value.trim(),
+    resultSummary: document.getElementById('save-summary').value.trim()
+  };
+  if (!body.sparql) { toast('SPARQL is required', true); return; }
+  try {
+    const result = await api(API_BASE + '/saved-queries', { method: 'POST', headers: authHeaders(true), body: JSON.stringify(body) });
+    document.getElementById('save-result').style.display = 'block';
+    document.getElementById('save-share-url').textContent = result.shareUrl;
+    document.getElementById('save-share-url').href = result.shareUrl;
+    document.getElementById('save-share-token').textContent = 'Token: ' + result.shareToken;
+    document.getElementById('save-modal-confirm').style.display = 'none';
+    if (tenantId) loadQueries(tenantId);
+  } catch (e) { toast(e.message, true); }
+});
+
+if (getApiKey()) loadTenants();
+</script>
+</body>
+</html>

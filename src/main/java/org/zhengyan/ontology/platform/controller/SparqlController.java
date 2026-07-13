@@ -17,10 +17,14 @@ import org.zhengyan.ontology.platform.model.SparqlQueryResult;
 import org.zhengyan.ontology.platform.service.AuditService;
 import org.zhengyan.ontology.platform.service.CachedSparqlService;
 import org.zhengyan.ontology.platform.service.MetricsService;
+import org.zhengyan.ontology.platform.model.QueryHistoryEntry;
+import org.zhengyan.ontology.platform.repository.QueryHistoryRepository;
 import org.zhengyan.ontology.platform.service.SparqlResultFormat;
 import org.zhengyan.ontology.platform.service.SparqlResultFormatter;
 
 import io.micrometer.observation.annotation.Observed;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -33,15 +37,18 @@ public class SparqlController {
     private final MetricsService metricsService;
     private final SparqlResultFormatter resultFormatter;
     private final CachedSparqlService cachedSparqlService;
+    private final QueryHistoryRepository queryHistoryRepository;
 
     public SparqlController(EngineRegistry engineRegistry, AuditService auditService,
                             MetricsService metricsService, SparqlResultFormatter resultFormatter,
-                            CachedSparqlService cachedSparqlService) {
+                            CachedSparqlService cachedSparqlService,
+                            QueryHistoryRepository queryHistoryRepository) {
         this.engineRegistry = engineRegistry;
         this.auditService = auditService;
         this.metricsService = metricsService;
         this.resultFormatter = resultFormatter;
         this.cachedSparqlService = cachedSparqlService;
+        this.queryHistoryRepository = queryHistoryRepository;
     }
 
     @Observed(name = "sparql.execute")
@@ -84,10 +91,34 @@ public class SparqlController {
         try {
             SparqlQueryResult result = cachedSparqlService.executeQuery(tenantId, sparql);
             long elapsed = System.currentTimeMillis() - start;
-            int resultCount = result.isGraphResult() ? result.getGraphModel().size() : result.getResults().size();
+            int resultCount = result.isBooleanResult() ? 1 :
+                    result.isGraphResult() ? result.getGraphModel().size() : result.getResults().size();
             auditService.recordSparqlQuery(tenantId, sparql, result.getTranslatedSql(),
                     elapsed, true, null, resultCount);
             metricsService.recordQuery(tenantId, elapsed, true);
+            recordQueryHistory(tenantId, sparql, elapsed);
+
+            if (result.isBooleanResult()) {
+                if (format.isGraphFormat()) {
+                    response.setStatus(HttpServletResponse.SC_NOT_ACCEPTABLE);
+                    return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
+                }
+                if (format == SparqlResultFormat.JSON) {
+                    return ResponseEntity.ok(result);
+                }
+                if (format != SparqlResultFormat.SPARQL_JSON) {
+                    response.setStatus(HttpServletResponse.SC_NOT_ACCEPTABLE);
+                    return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE).build();
+                }
+                response.setContentType(format.getMediaType().toString());
+                return (StreamingResponseBody) out -> {
+                    try {
+                        resultFormatter.writeBooleanResult(format, result, out);
+                    } catch (Exception e) {
+                        throw new OntologyPlatformException("Failed to write boolean result", 500, "WRITE_ERROR", e);
+                    }
+                };
+            }
 
             if (result.isGraphResult()) {
                 if (!format.isGraphFormat()) {
@@ -131,6 +162,24 @@ public class SparqlController {
         }
     }
 
+    private void recordQueryHistory(String tenantId, String sparql, long executionTimeMs) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            Long apiKeyId = null;
+            if (auth != null && auth.getDetails() instanceof Map) {
+                Object id = ((Map<?, ?>) auth.getDetails()).get("apiKeyId");
+                if (id instanceof Number) {
+                    apiKeyId = ((Number) id).longValue();
+                }
+            }
+            QueryHistoryEntry entry = new QueryHistoryEntry(tenantId, apiKeyId,
+                    sparql.length() > 10000 ? sparql.substring(0, 10000) : sparql,
+                    executionTimeMs);
+            queryHistoryRepository.save(entry);
+        } catch (Exception ignored) {
+        }
+    }
+
     private ResponseEntity<SparqlQueryResult> doExecuteJson(String tenantId, String sparql) {
         OntologyEngine engine = engineRegistry.get(tenantId);
         if (!engine.isHealthy()) {
@@ -141,9 +190,12 @@ public class SparqlController {
         try {
             SparqlQueryResult result = cachedSparqlService.executeQuery(tenantId, sparql);
             long elapsed = System.currentTimeMillis() - start;
+            int resultCount = result.isBooleanResult() ? 1 :
+                    result.isGraphResult() ? result.getGraphModel().size() : result.getResults().size();
             auditService.recordSparqlQuery(tenantId, sparql, result.getTranslatedSql(),
-                    elapsed, true, null, result.getResults().size());
+                    elapsed, true, null, resultCount);
             metricsService.recordQuery(tenantId, elapsed, true);
+            recordQueryHistory(tenantId, sparql, elapsed);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - start;

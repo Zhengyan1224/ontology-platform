@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -43,5 +44,11 @@ public class MappingAssistantControllerTest {
         assertNotNull(response.getBody().get("metadataSummary"));
         assertNull(response.getBody().get("owlDraft"));
         assertNull(response.getBody().get("obdaDraft"));
+
+        assertNotNull(response.getBody().get("editableConfig"));
+        Map<String, Object> editableConfig = (Map<String, Object>) response.getBody().get("editableConfig");
+        assertNotNull(editableConfig.get("tables"));
+        assertTrue(((List<?>) editableConfig.get("tables")).size() > 0);
+        assertNotNull(editableConfig.get("relationships"));
     }
 }

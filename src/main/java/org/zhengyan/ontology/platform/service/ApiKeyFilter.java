@@ -56,11 +56,14 @@ public class ApiKeyFilter extends OncePerRequestFilter {
         }
 
         ApiKeyEntity entity = keyEntity.get();
+        java.util.Map<String, Object> authDetails = new java.util.LinkedHashMap<>();
+        authDetails.put("tenantScopes", entity.getTenantScopes() != null ? entity.getTenantScopes() : "*");
+        authDetails.put("apiKeyId", entity.getId());
         UsernamePasswordAuthenticationToken authentication =
                 new UsernamePasswordAuthenticationToken(
                         entity.getName(), null,
                         List.of(new SimpleGrantedAuthority(entity.getRole())));
-        authentication.setDetails(entity.getTenantScopes() != null ? entity.getTenantScopes() : "*");
+        authentication.setDetails(authDetails);
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         filterChain.doFilter(request, response);

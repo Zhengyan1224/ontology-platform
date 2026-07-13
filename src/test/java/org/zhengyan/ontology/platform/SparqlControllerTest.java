@@ -11,6 +11,7 @@ import org.zhengyan.ontology.platform.controller.SparqlController;
 import org.zhengyan.ontology.platform.engine.EngineRegistry;
 import org.zhengyan.ontology.platform.engine.OntologyEngine;
 import org.zhengyan.ontology.platform.model.SparqlQueryResult;
+import org.zhengyan.ontology.platform.repository.QueryHistoryRepository;
 import org.zhengyan.ontology.platform.service.AuditService;
 import org.zhengyan.ontology.platform.service.CachedSparqlService;
 import org.zhengyan.ontology.platform.service.MetricsService;
@@ -55,6 +56,9 @@ public class SparqlControllerTest {
 
     @MockitoBean
     private CachedSparqlService cachedSparqlService;
+
+    @MockitoBean
+    private QueryHistoryRepository queryHistoryRepository;
 
     @Test
     void testExecuteSparql() throws Exception {

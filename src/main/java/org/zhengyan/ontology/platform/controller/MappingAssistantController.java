@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,5 +26,13 @@ public class MappingAssistantController {
             @PathVariable String tenantId,
             @RequestBody(required = false) MappingAssistantService.DraftRequest request) {
         return ResponseEntity.ok(mappingAssistantService.createDraft(tenantId, request));
+    }
+
+    @PutMapping("/tenants/{tenantId}/mapping-assistant/config")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<MappingAssistantService.DraftResponse> updateConfig(
+            @PathVariable String tenantId,
+            @RequestBody MappingAssistantService.EditableConfig config) {
+        return ResponseEntity.ok(mappingAssistantService.applyConfig(tenantId, config));
     }
 }

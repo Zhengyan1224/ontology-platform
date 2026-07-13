@@ -38,7 +38,13 @@ public class SecurityConfig {
                 "/v3/api-docs/",
                 "/h2-console/",
                 "/ontology-viz/",
-                "/mapping-assistant/"
+                "/mapping-assistant/",
+                "/admin/",
+                "/nlq/",
+                "/nlq-examples/",
+                "/saved-queries/",
+                "/tenant/",
+                "/query-history/"
         ));
     }
 
@@ -73,7 +79,13 @@ public class SecurityConfig {
                     "/v3/api-docs/**",
                     "/h2-console/**",
                     "/ontology-viz/**",
-                    "/mapping-assistant/**"
+                    "/mapping-assistant/**",
+                    "/admin/**",
+                    "/nlq/**",
+                    "/nlq-examples/**",
+                    "/saved-queries/**",
+                    "/tenant/**",
+                    "/query-history/**"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

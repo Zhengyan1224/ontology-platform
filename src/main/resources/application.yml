@@ -12,7 +12,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql,classpath:db/init-tenants.sql,classpath:db/init-audit.sql,classpath:db/init-api-keys.sql,classpath:db/init-jwt-blacklist.sql
+      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql,classpath:db/init-tenants.sql,classpath:db/init-audit.sql,classpath:db/init-api-keys.sql,classpath:db/init-jwt-blacklist.sql,classpath:db/init-saved-queries.sql,classpath:db/init-query-history.sql
       continue-on-error: true
   h2:
     console:
@@ -76,6 +76,8 @@ ontology:
     iri-template: "/{pk}"
     join-table-behavior: object-only
     mapping-style: per-table
+  query-history:
+    retention-days: 30
   viz:
     max-edge-limit: 1000
     cache-ttl-seconds: 300
