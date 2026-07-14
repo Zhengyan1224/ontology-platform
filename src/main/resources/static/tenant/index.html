@@ -66,6 +66,24 @@ a:hover { text-decoration: underline; }
     </div>
   </div>
   <div class="card">
+    <h2>OWL / OBDA Editor</h2>
+    <div class="card-body">
+      <div class="field-row" style="grid-template-columns:1fr;">
+        <label style="font-weight:500;color:#637083;">OWL (Turtle)</label>
+        <textarea id="owl-editor" style="width:100%;min-height:300px;font-family:monospace;font-size:13px;padding:8px;border:1px solid #c8d1df;border-radius:4px;resize:vertical;" placeholder="Generated OWL content will appear here..."></textarea>
+      </div>
+      <div class="field-row" style="grid-template-columns:1fr;margin-top:12px;">
+        <label style="font-weight:500;color:#637083;">OBDA</label>
+        <textarea id="obda-editor" style="width:100%;min-height:200px;font-family:monospace;font-size:13px;padding:8px;border:1px solid #c8d1df;border-radius:4px;resize:vertical;" placeholder="Generated OBDA content will appear here..."></textarea>
+      </div>
+      <div class="toolbar" style="margin-top:12px;">
+        <button id="gen-content-btn">Generate from DB</button>
+        <button id="save-draft-btn" class="secondary">Save Draft</button>
+        <button id="save-apply-btn" class="primary">Save & Apply</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
     <h2>Edit</h2>
     <div class="card-body">
       <div class="field-row"><span class="label">Name</span><input id="edit-name"></div>
@@ -79,6 +97,17 @@ a:hover { text-decoration: underline; }
         <button id="save-btn">Save Changes</button>
         <button id="delete-btn" class="danger">Delete Tenant</button>
       </div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>SQL Query</h2>
+    <div class="card-body">
+      <textarea id="sql-input" style="width:100%;min-height:100px;font-family:monospace;font-size:13px;padding:8px;border:1px solid #c8d1df;border-radius:4px;resize:vertical;" placeholder="Enter SQL query... (SELECT/INSERT/UPDATE/DELETE)"></textarea>
+      <div class="toolbar" style="margin-top:8px;">
+        <button id="sql-exec-btn">Execute</button>
+        <span id="sql-exec-time" style="font-size:12px;color:#637083;margin-left:8px;align-self:center;"></span>
+      </div>
+      <div id="sql-results" style="margin-top:12px;"></div>
     </div>
   </div>
   <div class="card">
@@ -145,8 +174,42 @@ async function loadTenant() {
     document.getElementById('edit-password').value = '';
     document.getElementById('edit-owl').value = t.owlPath || '';
     document.getElementById('edit-obda').value = t.obdaPath || '';
+    document.getElementById('owl-editor').value = t.owlContent || '';
+    document.getElementById('obda-editor').value = t.obdaContent || '';
   } catch (e) { toast('Load failed: ' + e.message, true); }
 }
+
+document.getElementById('gen-content-btn').addEventListener('click', async () => {
+  try {
+    const data = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/generate', { method: 'POST', headers: authHeaders(true) });
+    document.getElementById('owl-editor').value = data.owlContent || '';
+    document.getElementById('obda-editor').value = data.obdaContent || '';
+    toast('Generated from DB metadata');
+  } catch (e) { toast(e.message, true); }
+});
+
+document.getElementById('save-draft-btn').addEventListener('click', async () => {
+  const body = {
+    owlContent: document.getElementById('owl-editor').value,
+    obdaContent: document.getElementById('obda-editor').value
+  };
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/content', { method: 'PUT', headers: authHeaders(true), body: JSON.stringify(body) });
+    toast('Saved');
+  } catch (e) { toast(e.message, true); }
+});
+
+document.getElementById('save-apply-btn').addEventListener('click', async () => {
+  const body = {
+    owlContent: document.getElementById('owl-editor').value,
+    obdaContent: document.getElementById('obda-editor').value
+  };
+  try {
+    const result = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/apply', { method: 'POST', headers: authHeaders(true), body: JSON.stringify(body) });
+    toast('Applied - Engine ' + (result.health || 'unknown'));
+    loadTenant();
+  } catch (e) { toast(e.message, true); }
+});
 
 document.getElementById('reinit-btn').addEventListener('click', async () => {
   try {
@@ -193,6 +256,52 @@ document.getElementById('delete-btn').addEventListener('click', async () => {
     toast('Deleted');
     setTimeout(() => window.location.href = '/admin/', 1000);
   } catch (e) { toast(e.message, true); }
+});
+
+// SQL Query
+document.getElementById('sql-exec-btn').addEventListener('click', async () => {
+  const sql = document.getElementById('sql-input').value.trim();
+  if (!sql) { toast('Enter a SQL query', true); return; }
+  const resultsDiv = document.getElementById('sql-results');
+  const execTime = document.getElementById('sql-exec-time');
+  resultsDiv.innerHTML = '<em style="color:#637083;">Executing...</em>';
+  execTime.textContent = '';
+  try {
+    const start = performance.now();
+    const res = await fetch(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/sql', {
+      method: 'POST',
+      headers: authHeaders(true),
+      body: JSON.stringify({ sql: sql })
+    });
+    const elapsed = ((performance.now() - start) / 1000).toFixed(2);
+    const data = await res.json();
+    execTime.textContent = elapsed + 's (' + data.executionTimeMs + 'ms)';
+
+    if (!data.success) {
+      resultsDiv.innerHTML = '<div style="color:#c62828;">Error: ' + esc(data.error || data.message || 'Unknown') + '</div>';
+      return;
+    }
+
+    if (data.columns && data.columns.length === 1 && data.columns[0] === 'affected_rows') {
+      resultsDiv.innerHTML = '<div style="padding:16px;text-align:center;font-size:14px;">Query OK, ' + data.rowCount + ' row(s) affected</div>';
+    } else if (data.columns && data.rows) {
+      const cols = data.columns;
+      const rows = data.rows;
+      let html = '<div style="font-size:12px;color:#637083;margin-bottom:6px;">' + data.rowCount + ' row(s)</div>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f0f3f8;">';
+      cols.forEach(c => { html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;white-space:nowrap;">' + esc(c) + '</th>'; });
+      html += '</tr></thead><tbody>';
+      rows.forEach(r => {
+        html += '<tr>';
+        cols.forEach(c => { html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;max-width:300px;overflow:hidden;text-overflow:ellipsis;">' + esc(r[c]) + '</td>'; });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+      resultsDiv.innerHTML = html;
+    } else {
+      resultsDiv.innerHTML = '<em style="color:#637083;">No results</em>';
+    }
+  } catch (e) { resultsDiv.innerHTML = '<div style="color:#c62828;">Error: ' + esc(e.message) + '</div>'; }
 });
 
 // SPARQL Query

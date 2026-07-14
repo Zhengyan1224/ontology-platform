@@ -40,14 +40,16 @@ public class OntopEngine implements OntologyEngine {
         this.tenant = tenant;
     }
 
+    private final List<Path> tempFiles = new ArrayList<>();
+
     @Override
     public void initialize(Tenant tenant) throws Exception {
         if (initialized.get()) {
             throw new IllegalStateException("Engine already initialized for tenant: " + tenant.getId());
         }
 
-        String owlPath = resolvePath(tenant.resolveOwlPath());
-        String obdaPath = resolvePath(tenant.resolveObdaPath());
+        String owlPath = resolveContentOrPath(tenant.getOwlContent(), tenant.resolveOwlPath(), "-owl", ".ttl");
+        String obdaPath = resolveContentOrPath(tenant.getObdaContent(), tenant.resolveObdaPath(), "-obda", ".obda");
         String propPath = createTempProperties(tenant);
 
         log.info("Initializing Ontop engine for tenant [{}]: owl={}, obda={}",
@@ -201,6 +203,14 @@ public class OntopEngine implements OntologyEngine {
             repo.shutDown();
             repo = null;
         }
+        for (Path tempFile : tempFiles) {
+            try {
+                Files.deleteIfExists(tempFile);
+            } catch (Exception e) {
+                log.warn("Failed to delete temp file: {}", tempFile, e);
+            }
+        }
+        tempFiles.clear();
         initialized.set(false);
         log.info("Ontop engine destroyed for tenant [{}]", tenant.getId());
     }
@@ -236,6 +246,16 @@ public class OntopEngine implements OntologyEngine {
             f = new File("src/main/resources", path);
         }
         return f.toURI().toString();
+    }
+
+    private String resolveContentOrPath(String content, String fallbackPath, String suffix, String extension) throws Exception {
+        if (content != null && !content.isBlank()) {
+            Path tempFile = Files.createTempFile(tenant.getId() + suffix, extension);
+            Files.writeString(tempFile, content);
+            tempFiles.add(tempFile);
+            return tempFile.toUri().toString();
+        }
+        return resolvePath(fallbackPath);
     }
 
     private String createTempProperties(Tenant tenant) throws Exception {

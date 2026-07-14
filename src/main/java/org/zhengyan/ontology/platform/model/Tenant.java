@@ -14,6 +14,8 @@ public class Tenant {
     private String jdbcUsername;
     private String jdbcPassword;
     private String initSql;
+    private String owlContent;
+    private String obdaContent;
 
     public Tenant() {
     }
@@ -48,6 +50,10 @@ public class Tenant {
     public void setJdbcPassword(String jdbcPassword) { this.jdbcPassword = jdbcPassword; }
     public String getInitSql() { return initSql; }
     public void setInitSql(String initSql) { this.initSql = initSql; }
+    public String getOwlContent() { return owlContent; }
+    public void setOwlContent(String owlContent) { this.owlContent = owlContent; }
+    public String getObdaContent() { return obdaContent; }
+    public void setObdaContent(String obdaContent) { this.obdaContent = obdaContent; }
 
     public String resolveOwlPath() {
         if (owlPath != null && !owlPath.isBlank()) {

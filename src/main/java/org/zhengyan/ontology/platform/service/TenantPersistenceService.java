@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.zhengyan.ontology.platform.model.Tenant;
+import org.zhengyan.ontology.platform.repository.TenantContentRepository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -16,19 +17,34 @@ public class TenantPersistenceService {
     private static final Logger log = LoggerFactory.getLogger(TenantPersistenceService.class);
 
     private final JdbcTemplate jdbcTemplate;
+    private final TenantContentRepository tenantContentRepository;
 
-    public TenantPersistenceService(JdbcTemplate jdbcTemplate) {
+    public TenantPersistenceService(JdbcTemplate jdbcTemplate, TenantContentRepository tenantContentRepository) {
         this.jdbcTemplate = jdbcTemplate;
+        this.tenantContentRepository = tenantContentRepository;
     }
 
     public List<Tenant> findAll() {
-        return jdbcTemplate.query("SELECT * FROM tenants", this::mapRow);
+        List<Tenant> tenants = jdbcTemplate.query("SELECT * FROM tenants", this::mapRow);
+        tenants.forEach(this::loadContent);
+        return tenants;
     }
 
     public Tenant findById(String id) {
         List<Tenant> results = jdbcTemplate.query(
                 "SELECT * FROM tenants WHERE id = ?", this::mapRow, id);
-        return results.isEmpty() ? null : results.get(0);
+        if (results.isEmpty()) return null;
+        Tenant tenant = results.get(0);
+        loadContent(tenant);
+        return tenant;
+    }
+
+    private void loadContent(Tenant tenant) {
+        TenantContentRepository.TenantContent content = tenantContentRepository.findByTenantId(tenant.getId());
+        if (content != null) {
+            tenant.setOwlContent(content.owlContent());
+            tenant.setObdaContent(content.obdaContent());
+        }
     }
 
     public void save(Tenant tenant) {

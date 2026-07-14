@@ -181,6 +181,7 @@ async function loadTenants() {
         <td><span class="status-badge ${healthClass}">${healthLabel}</span></td>
         <td>
           <button class="small" onclick="editTenant('${esc(t.id)}')">Edit</button>
+          <button class="small" onclick="editContent('${esc(t.id)}')">Content</button>
           <button class="small danger" onclick="deleteTenant('${esc(t.id)}')">Delete</button>
         </td>
       </tr>`;
@@ -193,6 +194,11 @@ async function loadTenants() {
 function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function editTenant(id) {
+  const tid = encodeURIComponent(id);
+  window.location.href = '/tenant/?id=' + tid;
+}
+
+function editContent(id) {
   const tid = encodeURIComponent(id);
   window.location.href = '/tenant/?id=' + tid;
 }

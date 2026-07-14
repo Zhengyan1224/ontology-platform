@@ -12,7 +12,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql,classpath:db/init-tenants.sql,classpath:db/init-audit.sql,classpath:db/init-api-keys.sql,classpath:db/init-jwt-blacklist.sql,classpath:db/init-saved-queries.sql,classpath:db/init-query-history.sql
+      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql,classpath:db/init-tenants.sql,classpath:db/init-audit.sql,classpath:db/init-api-keys.sql,classpath:db/init-jwt-blacklist.sql,classpath:db/init-saved-queries.sql,classpath:db/init-query-history.sql,classpath:db/init-content.sql
       continue-on-error: true
   h2:
     console:
@@ -87,8 +87,8 @@ ontology:
         cleanup-interval: 300000
       llm:
         api-key: ${LLM_API_KEY:sk-placeholder}
-        model: gpt-4o-mini
-        base-url:
+        model: nvidia/nemotron-3-ultra-550b-a55b
+        base-url: https://integrate.api.nvidia.com/v1
   tenants:
     - id: sample
       name: Sample Books Database

@@ -9,7 +9,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql,classpath:db/init-tenants.sql,classpath:db/init-audit.sql,classpath:db/init-api-keys.sql,classpath:db/init-jwt-blacklist.sql,classpath:db/init-saved-queries.sql,classpath:db/init-query-history.sql
+      schema-locations: classpath:db/init-books.sql,classpath:db/init-university.sql,classpath:db/init-tenants.sql,classpath:db/init-audit.sql,classpath:db/init-api-keys.sql,classpath:db/init-jwt-blacklist.sql,classpath:db/init-saved-queries.sql,classpath:db/init-query-history.sql,classpath:db/init-content.sql
       continue-on-error: true
 
 management:

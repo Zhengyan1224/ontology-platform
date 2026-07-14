@@ -78,6 +78,8 @@ public class AdminController {
         m.put("jdbcUsername", tenant.getJdbcUsername());
         m.put("owlPath", tenant.getOwlPath());
         m.put("obdaPath", tenant.getObdaPath());
+        m.put("owlContent", tenant.getOwlContent());
+        m.put("obdaContent", tenant.getObdaContent());
         m.put("health", engine != null ? engine.checkHealth() : "not_initialized");
         m.put("templateCount", schemaProvider.getSchemaForTenant(tenantId) != null ? 1 : 0);
         return ResponseEntity.ok(m);
