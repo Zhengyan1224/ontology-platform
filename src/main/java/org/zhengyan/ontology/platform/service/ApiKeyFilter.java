@@ -20,18 +20,15 @@ public class ApiKeyFilter extends OncePerRequestFilter {
 
     private final ApiKeyService apiKeyService;
     private final AuditService auditService;
-    private final List<String> publicPaths;
 
     public ApiKeyFilter(ApiKeyService apiKeyService, AuditService auditService, List<String> publicPaths) {
         this.apiKeyService = apiKeyService;
         this.auditService = auditService;
-        this.publicPaths = publicPaths;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        return publicPaths.stream().anyMatch(p -> path.startsWith(p) || path.matches(p));
+        return request.getHeader(API_KEY_HEADER) == null;
     }
 
     @Override
@@ -40,31 +37,22 @@ public class ApiKeyFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         String apiKey = request.getHeader(API_KEY_HEADER);
 
-        if (apiKey == null) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
         Optional<ApiKeyEntity> keyEntity = apiKeyService.validateKey(apiKey);
 
-        if (keyEntity.isEmpty()) {
+        if (keyEntity.isPresent()) {
+            ApiKeyEntity entity = keyEntity.get();
+            java.util.Map<String, Object> authDetails = new java.util.LinkedHashMap<>();
+            authDetails.put("tenantScopes", entity.getTenantScopes() != null ? entity.getTenantScopes() : "*");
+            authDetails.put("apiKeyId", entity.getId());
+            UsernamePasswordAuthenticationToken authentication =
+                    new UsernamePasswordAuthenticationToken(
+                            entity.getName(), null,
+                            List.of(new SimpleGrantedAuthority(entity.getRole())));
+            authentication.setDetails(authDetails);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+        } else {
             auditService.recordAuthEvent(apiKey, "API_KEY_AUTH", false, "Invalid API key");
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\":\"Unauthorized\",\"message\":\"Missing or invalid API key\"}");
-            return;
         }
-
-        ApiKeyEntity entity = keyEntity.get();
-        java.util.Map<String, Object> authDetails = new java.util.LinkedHashMap<>();
-        authDetails.put("tenantScopes", entity.getTenantScopes() != null ? entity.getTenantScopes() : "*");
-        authDetails.put("apiKeyId", entity.getId());
-        UsernamePasswordAuthenticationToken authentication =
-                new UsernamePasswordAuthenticationToken(
-                        entity.getName(), null,
-                        List.of(new SimpleGrantedAuthority(entity.getRole())));
-        authentication.setDetails(authDetails);
-        SecurityContextHolder.getContext().setAuthentication(authentication);
 
         filterChain.doFilter(request, response);
     }

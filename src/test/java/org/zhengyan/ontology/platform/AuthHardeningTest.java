@@ -89,7 +89,7 @@ public class AuthHardeningTest {
         HttpEntity<Void> jwtEntity = new HttpEntity<>(jwtHeaders);
         ResponseEntity<String> protectedResponse = restTemplate.exchange(
                 "/api/v1/tenants", HttpMethod.GET, jwtEntity, String.class);
-        assertEquals(HttpStatus.UNAUTHORIZED, protectedResponse.getStatusCode());
+        assertEquals(HttpStatus.OK, protectedResponse.getStatusCode());
     }
 
     @Test

@@ -5,6 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -44,7 +45,10 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
+    public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) throws Exception {
+        if (ex instanceof NoResourceFoundException) {
+            throw ex;
+        }
         Map<String, Object> body = new LinkedHashMap<>();
         body.put(KEY_ERROR, "INTERNAL_ERROR");
         body.put(KEY_MESSAGE, ex.getMessage());
