@@ -285,7 +285,7 @@ class PlatformIntegrationTest {
     @Order(18)
     void generateMappingReturnsZip() {
         ResponseEntity<byte[]> response = rest.exchange(
-                "/api/v1/tenants/sample/generate-mapping", HttpMethod.POST, null, byte[].class);
+                "/api/v1/tenants/sample/generate-mapping", HttpMethod.GET, null, byte[].class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertTrue(response.getBody().length > 0);

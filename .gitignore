@@ -5,6 +5,7 @@ target/
 *.war
 *.zip
 *.tar.gz
+*.pdf
 pom.xml.tag
 pom.xml.releaseBackup
 pom.xml.versionsBackup

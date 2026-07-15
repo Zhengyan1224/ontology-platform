@@ -28,7 +28,7 @@ public class EngineRegistry {
                 engine.initialize(tenant);
                 return engine;
             } catch (Exception e) {
-                log.error("Failed to initialize engine for tenant: {}", id, e);
+                log.warn("Failed to initialize engine for tenant: {} (will retry on apply)", id);
                 throw new OntologyPlatformException("Engine initialization failed for tenant: " + id, 500, "ENGINE_INIT_FAILED", e);
             }
         });

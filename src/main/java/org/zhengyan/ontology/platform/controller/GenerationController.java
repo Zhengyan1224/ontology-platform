@@ -78,7 +78,7 @@ public class GenerationController {
             String owl = owlGeneratorService.generateOwl(tenant);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType("text/turtle"));
-            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + tenantId + ".owl.ttl\"");
+            headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + tenantId + ".owl\"");
             return ResponseEntity.ok().headers(headers).body(owl);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -124,7 +124,7 @@ public class GenerationController {
         }
     }
 
-    @PostMapping("/tenants/{tenantId}/generate-mapping")
+    @GetMapping("/tenants/{tenantId}/generate-mapping")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> generateMapping(@PathVariable String tenantId) {
         Tenant tenant = findTenant(tenantId);

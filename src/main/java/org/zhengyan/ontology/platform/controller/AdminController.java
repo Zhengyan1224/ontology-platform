@@ -1,9 +1,10 @@
 package org.zhengyan.ontology.platform.controller;
 
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.zhengyan.ontology.platform.config.TenantConfig;
 import org.zhengyan.ontology.platform.engine.EngineRegistry;
-import org.zhengyan.ontology.platform.engine.OntologyEngine;
 import org.zhengyan.ontology.platform.model.CreateTenantRequest;
 import org.zhengyan.ontology.platform.model.Tenant;
 import org.zhengyan.ontology.platform.service.ApiKeyService;
@@ -25,6 +26,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1")
 public class AdminController {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminController.class);
 
     private static final String KEY_ERROR = "error";
     private static final String KEY_MESSAGE = "message";
@@ -69,7 +72,6 @@ public class AdminController {
         if (tenant == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(KEY_ERROR, TENANT_NOT_FOUND));
         }
-        OntologyEngine engine = engineRegistry.get(tenantId);
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id", tenant.getId());
         m.put("name", tenant.getName());
@@ -80,7 +82,7 @@ public class AdminController {
         m.put("obdaPath", tenant.getObdaPath());
         m.put("owlContent", tenant.getOwlContent());
         m.put("obdaContent", tenant.getObdaContent());
-        m.put("health", engine != null ? engine.checkHealth() : "not_initialized");
+        m.put("health", engineRegistry.isHealthy(tenantId) ? "UP" : "not_initialized");
         m.put("templateCount", schemaProvider.getSchemaForTenant(tenantId) != null ? 1 : 0);
         return ResponseEntity.ok(m);
     }
@@ -89,11 +91,10 @@ public class AdminController {
     public ResponseEntity<List<Map<String, Object>>> listTenants() {
         List<Map<String, Object>> tenants = getAllTenants().stream()
                 .map(t -> {
-                    OntologyEngine engine = engineRegistry.get(t.getId());
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("id", t.getId());
                     m.put("name", t.getName());
-                    m.put("health", engine != null ? engine.checkHealth() : "not_initialized");
+                    m.put("health", engineRegistry.isHealthy(t.getId()) ? "UP" : "not_initialized");
                     return m;
                 })
                 .collect(Collectors.toList());
@@ -130,7 +131,11 @@ public class AdminController {
         }
 
         tenantPersistenceService.save(tenant);
-        engineRegistry.getOrCreate(tenant);
+        try {
+            engineRegistry.getOrCreate(tenant);
+        } catch (Exception e) {
+            log.warn("Engine initialization deferred for tenant [{}]: {}", tenant.getId(), e.getMessage());
+        }
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", tenant.getId());
@@ -169,8 +174,12 @@ public class AdminController {
         }
 
         tenantPersistenceService.update(existing);
-        engineRegistry.reinitialize(tenantId);
-        engineRegistry.getOrCreate(existing);
+        engineRegistry.remove(tenantId);
+        try {
+            engineRegistry.getOrCreate(existing);
+        } catch (Exception e) {
+            log.warn("Engine reinitialization deferred for tenant [{}] after update: {}", tenantId, e.getMessage());
+        }
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("id", existing.getId());

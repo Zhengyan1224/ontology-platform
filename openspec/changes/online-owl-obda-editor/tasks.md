@@ -35,4 +35,5 @@
 ## 7. Build & Verify
 
 - [x] 7.1 Run `mvn test` to confirm all existing tests pass
-- [ ] 7.2 Start application and manually verify the full workflow: generate → edit → save → apply → query
+- [x] 7.2 Start application and manually verify the full workflow: generate → edit → save → apply → query
+- [x] 7.3 Fix `TenantConfigValidator`: skip OWL/OBDA file existence check when path is not explicitly provided — allows creating tenant without pre-existing files, then generate content via editor

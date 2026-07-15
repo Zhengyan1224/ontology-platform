@@ -103,7 +103,7 @@ public class ContentController {
 
             Tenant updated = tenantPersistenceService.findById(tenantId);
             if (updated != null) {
-                engineRegistry.reinitialize(tenantId);
+                engineRegistry.remove(tenantId);
                 engineRegistry.getOrCreate(updated);
             }
             cachedSparqlService.evictForTenant(tenantId);
