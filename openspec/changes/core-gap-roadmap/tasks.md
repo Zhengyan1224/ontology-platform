@@ -41,28 +41,28 @@
 
 ## 5. Document Ingestion
 
-- [ ] 5.1 Add documents and document_chunks tables to init-content.sql
-- [ ] 5.2 Add Apache Tika dependency to pom.xml
-- [ ] 5.3 Create Document entity, DocumentChunk entity, and repositories
-- [ ] 5.4 Create DocumentService with upload, parse, chunk, embed pipeline
-- [ ] 5.5 Implement vector embedding generation (reuse existing LLM config or add embedding model)
-- [ ] 5.6 Implement similarity search (pgvector or in-memory cosine similarity)
-- [ ] 5.7 Create DocumentController with upload, process, query, list, delete endpoints
-- [ ] 5.8 Add document management UI to tenant/index.html
-- [ ] 5.9 Add MCP document tools (document_query)
-- [ ] 5.10 Write tests for document upload, processing, and query
+- [x] 5.1 Add documents and document_chunks tables to init-content.sql
+- [x] 5.2 Add Apache Tika dependency to pom.xml
+- [x] 5.3 Create Document entity, DocumentChunk entity, and repositories
+- [x] 5.4 Create DocumentIngestionService with upload, parse (Tika), chunk, embed pipeline
+- [x] 5.5 Implement TF-IDF vector embedding (built-in, no external API needed)
+- [x] 5.6 Implement in-memory cosine similarity search
+- [x] 5.7 Create DocumentController with upload, query, list, delete, chunks endpoints
+- [x] 5.8 Add document management UI to tenant/index.html (upload, list, search, view chunks)
+- [x] 5.9 Add MCP document tools (document_list, document_query)
+- [x] 5.10 Write tests (11 tests for upload, CRUD, search, empty file handling)
 
 ## 6. LLM Ontology Assist
 
-- [ ] 6.1 Create ontology_proposals table in init-content.sql
-- [ ] 6.2 Create OntologyProposal entity and repository
-- [ ] 6.3 Create LlmOntologyAssistService with extraction prompts
-- [ ] 6.4 Implement DDL-to-ontology hints service (query DB metadata)
-- [ ] 6.5 Create OntologyAssistController with extract, review, apply, reject, ddl-hints endpoints
-- [ ] 6.6 Implement proposal merge logic (apply proposed concepts to tenant OWL)
-- [ ] 6.7 Add ontology assist UI to tenant/index.html
-- [ ] 6.8 Add MCP ontology assist tools (ontology_extract, ontology_apply_proposal)
-- [ ] 6.9 Write tests for LLM extraction and proposal workflow
+- [x] 6.1 Create ontology_proposals table in init-content.sql
+- [x] 6.2 Create OntologyProposal entity and repository
+- [x] 6.3 Create LlmOntologyAssistService with extraction prompts (reuses NLQ LLM config)
+- [x] 6.4 Implement DDL-to-ontology hints service (JDBC metadata → tables/columns/FKs)
+- [x] 6.5 Create OntologyAssistController with extract, ddl-hints, generate-from-ddl, proposals CRUD, apply, reject endpoints
+- [x] 6.6 Implement proposal merge logic (append to existing tenant_content + engine reinit)
+- [x] 6.7 Add ontology assist UI to tenant/index.html (extract form, DDL hints, proposals list)
+- [x] 6.8 Add MCP tools (ontology_extract, ontology_apply_proposal)
+- [x] 6.9 Write tests (15 tests for extraction, proposals CRUD, apply/reject, DDL hints)
 
 ## 7. Integration & Polish
 
