@@ -17,6 +17,7 @@ import org.zhengyan.ontology.platform.model.SparqlQueryResult;
 import org.zhengyan.ontology.platform.service.AuditService;
 import org.zhengyan.ontology.platform.service.CachedSparqlService;
 import org.zhengyan.ontology.platform.service.MetricsService;
+import org.zhengyan.ontology.platform.service.RuleTriggerService;
 import org.zhengyan.ontology.platform.model.QueryHistoryEntry;
 import org.zhengyan.ontology.platform.repository.QueryHistoryRepository;
 import org.zhengyan.ontology.platform.service.SparqlResultFormat;
@@ -38,17 +39,20 @@ public class SparqlController {
     private final SparqlResultFormatter resultFormatter;
     private final CachedSparqlService cachedSparqlService;
     private final QueryHistoryRepository queryHistoryRepository;
+    private final RuleTriggerService ruleTriggerService;
 
     public SparqlController(EngineRegistry engineRegistry, AuditService auditService,
                             MetricsService metricsService, SparqlResultFormatter resultFormatter,
                             CachedSparqlService cachedSparqlService,
-                            QueryHistoryRepository queryHistoryRepository) {
+                            QueryHistoryRepository queryHistoryRepository,
+                            RuleTriggerService ruleTriggerService) {
         this.engineRegistry = engineRegistry;
         this.auditService = auditService;
         this.metricsService = metricsService;
         this.resultFormatter = resultFormatter;
         this.cachedSparqlService = cachedSparqlService;
         this.queryHistoryRepository = queryHistoryRepository;
+        this.ruleTriggerService = ruleTriggerService;
     }
 
     @Observed(name = "sparql.execute")
@@ -97,6 +101,7 @@ public class SparqlController {
                     elapsed, true, null, resultCount);
             metricsService.recordQuery(tenantId, elapsed, true);
             recordQueryHistory(tenantId, sparql, elapsed);
+            ruleTriggerService.onSparqlQuery(tenantId, sparql, elapsed, resultCount);
 
             if (result.isBooleanResult()) {
                 if (format.isGraphFormat()) {
@@ -196,6 +201,7 @@ public class SparqlController {
                     elapsed, true, null, resultCount);
             metricsService.recordQuery(tenantId, elapsed, true);
             recordQueryHistory(tenantId, sparql, elapsed);
+            ruleTriggerService.onSparqlQuery(tenantId, sparql, elapsed, resultCount);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             long elapsed = System.currentTimeMillis() - start;

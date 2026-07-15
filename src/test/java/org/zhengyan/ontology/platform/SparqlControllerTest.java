@@ -15,6 +15,7 @@ import org.zhengyan.ontology.platform.repository.QueryHistoryRepository;
 import org.zhengyan.ontology.platform.service.AuditService;
 import org.zhengyan.ontology.platform.service.CachedSparqlService;
 import org.zhengyan.ontology.platform.service.MetricsService;
+import org.zhengyan.ontology.platform.service.RuleTriggerService;
 import org.zhengyan.ontology.platform.service.SparqlResultFormatter;
 
 import org.eclipse.rdf4j.model.Model;
@@ -59,6 +60,9 @@ public class SparqlControllerTest {
 
     @MockitoBean
     private QueryHistoryRepository queryHistoryRepository;
+
+    @MockitoBean
+    private RuleTriggerService ruleTriggerService;
 
     @Test
     void testExecuteSparql() throws Exception {

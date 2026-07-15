@@ -121,6 +121,101 @@ a:hover { text-decoration: underline; }
       <div id="sparql-results" style="margin-top:12px;"></div>
     </div>
   </div>
+  <div class="card">
+    <h2>Actions</h2>
+    <div class="card-body">
+      <div id="action-list"></div>
+      <hr style="border:none;border-top:1px solid #dce3ee;margin:12px 0;">
+      <div id="action-form">
+        <div class="field-row"><span class="label">Name</span><input id="act-name"></div>
+        <div class="field-row"><span class="label">Type</span>
+          <select id="act-type" style="padding:4px 8px;border:1px solid #c8d1df;border-radius:4px;">
+            <option value="sql_exec">SQL Execute</option>
+            <option value="api_call">API Call</option>
+            <option value="notification">Notification</option>
+          </select>
+        </div>
+        <div class="field-row"><span class="label">Config (JSON)</span><input id="act-config" placeholder='{"sql":"UPDATE books SET price = price * 1.1"}'></div>
+        <div class="toolbar" style="margin-top:8px;">
+          <button id="act-save-btn">Create Action</button>
+          <button id="act-cancel-btn" class="secondary" style="display:none;">Cancel</button>
+        </div>
+      </div>
+      <div id="action-exec-result" style="margin-top:12px;"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Workflows</h2>
+    <div class="card-body">
+      <div id="workflow-list"></div>
+      <hr style="border:none;border-top:1px solid #dce3ee;margin:12px 0;">
+      <div id="workflow-form">
+        <div class="field-row"><span class="label">Name</span><input id="wf-name"></div>
+        <div class="field-row"><span class="label">DAG (JSON)</span><textarea id="wf-dag" style="width:100%;min-height:80px;font-family:monospace;font-size:12px;padding:4px 8px;border:1px solid #c8d1df;border-radius:4px;resize:vertical;" placeholder='{"nodes":[{"id":"s1","actionId":"act-1"},{"id":"s2","actionId":"act-2"}],"edges":[{"from":"s1","to":"s2"}]}'></textarea></div>
+        <div class="field-row"><span class="label">Enabled</span><label><input id="wf-enabled" type="checkbox" checked> Enabled</label></div>
+        <div class="toolbar" style="margin-top:8px;">
+          <button id="wf-save-btn">Create Workflow</button>
+          <button id="wf-cancel-btn" class="secondary" style="display:none;">Cancel</button>
+          <button id="wf-validate-btn" class="secondary">Validate DAG</button>
+        </div>
+      </div>
+      <div id="wf-exec-result" style="margin-top:12px;"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Documents</h2>
+    <div class="card-body">
+      <div id="doc-list"></div>
+      <hr style="border:none;border-top:1px solid #dce3ee;margin:12px 0;">
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="doc-file-input" type="file" style="flex:1;padding:4px;font-size:13px;">
+        <button id="doc-upload-btn">Upload</button>
+      </div>
+      <hr style="border:none;border-top:1px solid #dce3ee;margin:12px 0;">
+      <div class="field-row"><span class="label">Search Query</span><input id="doc-query-input" placeholder="Search document content..."></div>
+      <div class="toolbar" style="margin-top:4px;">
+        <button id="doc-query-btn" class="secondary">Search</button>
+      </div>
+      <div id="doc-query-results" style="margin-top:8px;"></div>
+      <div id="doc-chunk-view" style="margin-top:12px;"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Ontology Assist</h2>
+    <div class="card-body">
+      <div class="field-row"><span class="label">Title</span><input id="oa-title" placeholder="e.g. Product Catalog"></div>
+      <div class="field-row" style="grid-template-columns:1fr;">
+        <textarea id="oa-description" style="width:100%;min-height:80px;font-family:monospace;font-size:13px;padding:8px;border:1px solid #c8d1df;border-radius:4px;resize:vertical;" placeholder="Describe the domain to extract ontology from..."></textarea>
+      </div>
+      <div class="toolbar" style="margin-top:8px;">
+        <button id="oa-extract-btn">Extract Ontology</button>
+        <button id="oa-ddl-btn" class="secondary">Get DDL Hints</button>
+        <button id="oa-ddl-gen-btn" class="secondary">Generate from DDL</button>
+      </div>
+      <div id="oa-ddl-output" style="margin-top:8px;font-size:12px;white-space:pre-wrap;max-height:200px;overflow:auto;background:#f0f3f8;padding:8px;border-radius:4px;display:none;"></div>
+      <hr style="border:none;border-top:1px solid #dce3ee;margin:12px 0;">
+      <div id="oa-proposal-list"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Rules</h2>
+    <div class="card-body">
+      <div id="rule-list"></div>
+      <hr style="border:none;border-top:1px solid #dce3ee;margin:12px 0;">
+      <div id="rule-form">
+        <div class="field-row"><span class="label">Name</span><input id="rule-name"></div>
+        <div class="field-row"><span class="label">Description</span><input id="rule-desc"></div>
+        <div class="field-row"><span class="label">Condition (SpEL)</span><input id="rule-condition" placeholder="e.g. price > 100 and category == 'Reference'"></div>
+        <div class="field-row"><span class="label">Action Refs (JSON)</span><input id="rule-actions" placeholder='[{"type":"sql_exec","actionId":"..."}]'></div>
+        <div class="field-row"><span class="label">Enabled</span><label><input id="rule-enabled" type="checkbox" checked> Enabled</label></div>
+        <div class="toolbar" style="margin-top:8px;">
+          <button id="rule-save-btn">Create Rule</button>
+          <button id="rule-cancel-btn" class="secondary" style="display:none;">Cancel</button>
+        </div>
+      </div>
+      <div id="rule-eval-result" style="margin-top:12px;"></div>
+    </div>
+  </div>
 </main>
 
 <script>
@@ -357,6 +452,545 @@ document.getElementById('sparql-exec-btn').addEventListener('click', async () =>
     }
   } catch (e) { resultsDiv.innerHTML = '<div style="color:#c62828;">Error: ' + esc(e.message) + '</div>'; }
 });
+
+// Actions
+let editingActionId = null;
+
+async function loadActions() {
+  const listDiv = document.getElementById('action-list');
+  try {
+    const actions = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/actions', { headers: authHeaders(false) });
+    if (!actions || actions.length === 0) {
+      listDiv.innerHTML = '<em style="color:#637083;">No actions defined yet.</em>';
+      return;
+    }
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f0f3f8;">';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;">Name</th>';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;">Type</th>';
+    html += '<th style="padding:6px 10px;text-align:center;border-bottom:2px solid #dce3ee;">Actions</th>';
+    html += '</tr></thead><tbody>';
+    actions.forEach(a => {
+      html += '<tr>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;">' + esc(a.name) + '</td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;"><span class="status-badge status-up">' + esc(a.type) + '</span></td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:center;">';
+      html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="editAction(\'' + a.id + '\')">Edit</button> ';
+      html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="executeAction(\'' + a.id + '\', false)">Run</button> ';
+      html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="executeAction(\'' + a.id + '\', true)">DryRun</button> ';
+      html += '<button class="danger" style="padding:2px 8px;font-size:12px;" onclick="deleteAction(\'' + a.id + '\')">Del</button>';
+      html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    listDiv.innerHTML = html;
+  } catch (e) { listDiv.innerHTML = '<em style="color:#c62828;">Failed to load actions: ' + esc(e.message) + '</em>'; }
+}
+
+async function editAction(actionId) {
+  try {
+    const a = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/actions/' + actionId, { headers: authHeaders(false) });
+    document.getElementById('act-name').value = a.name || '';
+    document.getElementById('act-type').value = a.type || 'sql_exec';
+    document.getElementById('act-config').value = a.configJson || '';
+    document.getElementById('act-save-btn').textContent = 'Update Action';
+    document.getElementById('act-cancel-btn').style.display = '';
+    editingActionId = actionId;
+  } catch (e) { toast(e.message, true); }
+}
+
+function clearActionForm() {
+  document.getElementById('act-name').value = '';
+  document.getElementById('act-type').value = 'sql_exec';
+  document.getElementById('act-config').value = '';
+  document.getElementById('act-save-btn').textContent = 'Create Action';
+  document.getElementById('act-cancel-btn').style.display = 'none';
+  editingActionId = null;
+}
+
+document.getElementById('act-save-btn').addEventListener('click', async () => {
+  const body = {
+    name: document.getElementById('act-name').value,
+    type: document.getElementById('act-type').value,
+    configJson: document.getElementById('act-config').value
+  };
+  try {
+    if (editingActionId) {
+      await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/actions/' + editingActionId, { method: 'PUT', headers: authHeaders(true), body: JSON.stringify(body) });
+      toast('Action updated');
+    } else {
+      await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/actions', { method: 'POST', headers: authHeaders(true), body: JSON.stringify(body) });
+      toast('Action created');
+    }
+    clearActionForm();
+    loadActions();
+  } catch (e) { toast(e.message, true); }
+});
+
+document.getElementById('act-cancel-btn').addEventListener('click', clearActionForm);
+
+async function executeAction(actionId, dryRun) {
+  const execDiv = document.getElementById('action-exec-result');
+  execDiv.innerHTML = '<em style="color:#637083;">Executing...</em>';
+  try {
+    const result = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/actions/' + actionId + '/execute?dryRun=' + dryRun, { method: 'POST', headers: authHeaders(false) });
+    let html = '<div style="padding:10px;border:1px solid #dce3ee;border-radius:4px;background:#fafbfd;">';
+    html += '<div><strong>Status:</strong> <span class="status-badge ' + (result.success ? 'status-up' : 'status-down') + '">' + (result.success ? 'OK' : 'FAIL') + '</span></div>';
+    html += '<div style="margin-top:4px;"><strong>Message:</strong> ' + esc(result.message) + '</div>';
+    if (result.details) {
+      html += '<pre style="margin-top:6px;font-size:12px;background:#f0f3f8;padding:8px;border-radius:4px;max-height:300px;overflow:auto;">' + esc(JSON.stringify(result.details, null, 2)) + '</pre>';
+    }
+    html += '</div>';
+    execDiv.innerHTML = html;
+  } catch (e) { execDiv.innerHTML = '<div style="color:#c62828;">Error: ' + esc(e.message) + '</div>'; }
+}
+
+async function deleteAction(actionId) {
+  if (!confirm('Delete action "' + actionId + '"?')) return;
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/actions/' + actionId, { method: 'DELETE', headers: authHeaders(false) });
+    toast('Action deleted');
+    loadActions();
+  } catch (e) { toast(e.message, true); }
+}
+
+// Workflows
+let editingWfId = null;
+
+async function loadWorkflows() {
+  const listDiv = document.getElementById('workflow-list');
+  try {
+    const wfs = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/workflows', { headers: authHeaders(false) });
+    if (!wfs || wfs.length === 0) {
+      listDiv.innerHTML = '<em style="color:#637083;">No workflows defined yet.</em>';
+      return;
+    }
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f0f3f8;">';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;">Name</th>';
+    html += '<th style="padding:6px 10px;text-align:center;border-bottom:2px solid #dce3ee;">Nodes</th>';
+    html += '<th style="padding:6px 10px;text-align:center;border-bottom:2px solid #dce3ee;">Enabled</th>';
+    html += '<th style="padding:6px 10px;text-align:center;border-bottom:2px solid #dce3ee;">Actions</th>';
+    html += '</tr></thead><tbody>';
+    wfs.forEach(w => {
+      let nodeCount = 0;
+      try { const d = JSON.parse(w.dagJson || '{}'); nodeCount = (d.nodes || []).length; } catch {}
+      html += '<tr>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;">' + esc(w.name) + '</td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:center;">' + nodeCount + '</td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:center;"><span class="status-badge ' + (w.enabled ? 'status-up' : 'status-down') + '">' + (w.enabled ? 'ON' : 'OFF') + '</span></td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:center;">';
+      html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="editWorkflow(\'' + w.id + '\')">Edit</button> ';
+      html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="executeWorkflow(\'' + w.id + '\')">Run</button> ';
+      html += '<button class="danger" style="padding:2px 8px;font-size:12px;" onclick="deleteWorkflow(\'' + w.id + '\')">Del</button>';
+      html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    listDiv.innerHTML = html;
+  } catch (e) { listDiv.innerHTML = '<em style="color:#c62828;">Failed to load workflows: ' + esc(e.message) + '</em>'; }
+}
+
+async function editWorkflow(wfId) {
+  try {
+    const w = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/workflows/' + wfId, { headers: authHeaders(false) });
+    document.getElementById('wf-name').value = w.name || '';
+    document.getElementById('wf-dag').value = w.dagJson || '';
+    document.getElementById('wf-enabled').checked = w.enabled;
+    document.getElementById('wf-save-btn').textContent = 'Update Workflow';
+    document.getElementById('wf-cancel-btn').style.display = '';
+    editingWfId = wfId;
+  } catch (e) { toast(e.message, true); }
+}
+
+function clearWfForm() {
+  document.getElementById('wf-name').value = '';
+  document.getElementById('wf-dag').value = '';
+  document.getElementById('wf-enabled').checked = true;
+  document.getElementById('wf-save-btn').textContent = 'Create Workflow';
+  document.getElementById('wf-cancel-btn').style.display = 'none';
+  editingWfId = null;
+  document.getElementById('wf-exec-result').innerHTML = '';
+}
+
+document.getElementById('wf-save-btn').addEventListener('click', async () => {
+  const body = {
+    name: document.getElementById('wf-name').value,
+    dagJson: document.getElementById('wf-dag').value,
+    enabled: document.getElementById('wf-enabled').checked
+  };
+  try {
+    if (editingWfId) {
+      await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/workflows/' + editingWfId, { method: 'PUT', headers: authHeaders(true), body: JSON.stringify(body) });
+      toast('Workflow updated');
+    } else {
+      await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/workflows', { method: 'POST', headers: authHeaders(true), body: JSON.stringify(body) });
+      toast('Workflow created');
+    }
+    clearWfForm();
+    loadWorkflows();
+  } catch (e) { toast(e.message, true); }
+});
+
+document.getElementById('wf-cancel-btn').addEventListener('click', clearWfForm);
+
+document.getElementById('wf-validate-btn').addEventListener('click', async () => {
+  const dagJson = document.getElementById('wf-dag').value;
+  try {
+    const result = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/workflows/validate', { method: 'POST', headers: authHeaders(true), body: JSON.stringify({ dagJson: dagJson }) });
+    toast(result.valid ? 'DAG is valid' : 'DAG invalid: ' + (result.message || 'unknown'), !result.valid);
+  } catch (e) { toast(e.message, true); }
+});
+
+async function executeWorkflow(wfId) {
+  const execDiv = document.getElementById('wf-exec-result');
+  execDiv.innerHTML = '<em style="color:#637083;">Executing...</em>';
+  try {
+    const result = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/workflows/' + wfId + '/execute', { method: 'POST', headers: authHeaders(false) });
+    let html = '<div style="padding:10px;border:1px solid #dce3ee;border-radius:4px;background:#fafbfd;">';
+    html += '<div><strong>Status:</strong> <span class="status-badge ' + (result.success ? 'status-up' : 'status-down') + '">' + (result.success ? 'OK' : 'FAIL') + '</span>';
+    html += ' ' + esc(result.message) + '</div>';
+    if (result.steps) {
+      html += '<hr style="border:none;border-top:1px solid #dce3ee;margin:8px 0;"><strong>Steps:</strong><table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px;"><thead><tr style="background:#f0f3f8;"><th style="padding:4px 8px;text-align:left;border-bottom:1px solid #dce3ee;">Node</th><th style="padding:4px 8px;text-align:left;border-bottom:1px solid #dce3ee;">Action</th><th style="padding:4px 8px;text-align:center;border-bottom:1px solid #dce3ee;">Result</th><th style="padding:4px 8px;text-align:left;border-bottom:1px solid #dce3ee;">Message</th></tr></thead><tbody>';
+      result.steps.forEach(s => {
+        html += '<tr><td style="padding:3px 8px;border-bottom:1px solid #eef2f7;">' + esc(s.nodeId) + '</td>';
+        html += '<td style="padding:3px 8px;border-bottom:1px solid #eef2f7;">' + esc(s.actionId) + '</td>';
+        html += '<td style="padding:3px 8px;border-bottom:1px solid #eef2f7;text-align:center;"><span class="status-badge ' + (s.success ? 'status-up' : 'status-down') + '">' + (s.success ? 'OK' : 'FAIL') + '</span></td>';
+        html += '<td style="padding:3px 8px;border-bottom:1px solid #eef2f7;">' + esc(s.message) + '</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</div>';
+    execDiv.innerHTML = html;
+  } catch (e) { execDiv.innerHTML = '<div style="color:#c62828;">Error: ' + esc(e.message) + '</div>'; }
+}
+
+async function deleteWorkflow(wfId) {
+  if (!confirm('Delete workflow "' + wfId + '"?')) return;
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/workflows/' + wfId, { method: 'DELETE', headers: authHeaders(false) });
+    toast('Workflow deleted');
+    loadWorkflows();
+  } catch (e) { toast(e.message, true); }
+}
+
+// Rules
+let editingRuleId = null;
+
+async function loadRules() {
+  const listDiv = document.getElementById('rule-list');
+  try {
+    const rules = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/rules', { headers: authHeaders(false) });
+    if (!rules || rules.length === 0) {
+      listDiv.innerHTML = '<em style="color:#637083;">No rules defined yet.</em>';
+      return;
+    }
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f0f3f8;">';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;">Name</th>';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;">Condition</th>';
+    html += '<th style="padding:6px 10px;text-align:center;border-bottom:2px solid #dce3ee;">Enabled</th>';
+    html += '<th style="padding:6px 10px;text-align:center;border-bottom:2px solid #dce3ee;">Actions</th>';
+    html += '</tr></thead><tbody>';
+    rules.forEach(r => {
+      html += '<tr>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;">' + esc(r.name) + '</td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;font-family:monospace;font-size:12px;">' + esc(r.conditionExpr) + '</td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:center;"><span class="status-badge ' + (r.enabled ? 'status-up' : 'status-down') + '">' + (r.enabled ? 'ON' : 'OFF') + '</span></td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:center;">';
+      html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="editRule(\'' + r.id + '\')">Edit</button> ';
+      html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="toggleRule(\'' + r.id + '\')">Toggle</button> ';
+      html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="evaluateRule(\'' + r.id + '\')">Eval</button> ';
+      html += '<button class="danger" style="padding:2px 8px;font-size:12px;" onclick="deleteRule(\'' + r.id + '\')">Del</button>';
+      html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    listDiv.innerHTML = html;
+  } catch (e) { listDiv.innerHTML = '<em style="color:#c62828;">Failed to load rules: ' + esc(e.message) + '</em>'; }
+}
+
+async function editRule(ruleId) {
+  try {
+    const r = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/rules/' + ruleId, { headers: authHeaders(false) });
+    document.getElementById('rule-name').value = r.name || '';
+    document.getElementById('rule-desc').value = r.description || '';
+    document.getElementById('rule-condition').value = r.conditionExpr || '';
+    document.getElementById('rule-actions').value = r.actionRefs || '';
+    document.getElementById('rule-enabled').checked = r.enabled;
+    document.getElementById('rule-save-btn').textContent = 'Update Rule';
+    document.getElementById('rule-cancel-btn').style.display = '';
+    editingRuleId = ruleId;
+  } catch (e) { toast(e.message, true); }
+}
+
+function cancelRuleEdit() {
+  clearRuleForm();
+}
+
+function clearRuleForm() {
+  document.getElementById('rule-name').value = '';
+  document.getElementById('rule-desc').value = '';
+  document.getElementById('rule-condition').value = '';
+  document.getElementById('rule-actions').value = '';
+  document.getElementById('rule-enabled').checked = true;
+  document.getElementById('rule-save-btn').textContent = 'Create Rule';
+  document.getElementById('rule-cancel-btn').style.display = 'none';
+  editingRuleId = null;
+}
+
+document.getElementById('rule-save-btn').addEventListener('click', async () => {
+  const body = {
+    name: document.getElementById('rule-name').value,
+    description: document.getElementById('rule-desc').value,
+    conditionExpr: document.getElementById('rule-condition').value,
+    actionRefs: document.getElementById('rule-actions').value,
+    enabled: document.getElementById('rule-enabled').checked
+  };
+  try {
+    if (editingRuleId) {
+      await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/rules/' + editingRuleId, { method: 'PUT', headers: authHeaders(true), body: JSON.stringify(body) });
+      toast('Rule updated');
+    } else {
+      await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/rules', { method: 'POST', headers: authHeaders(true), body: JSON.stringify(body) });
+      toast('Rule created');
+    }
+    clearRuleForm();
+    loadRules();
+  } catch (e) { toast(e.message, true); }
+});
+
+document.getElementById('rule-cancel-btn').addEventListener('click', cancelRuleEdit);
+
+async function toggleRule(ruleId) {
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/rules/' + ruleId + '/toggle', { method: 'PATCH', headers: authHeaders(false) });
+    loadRules();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function evaluateRule(ruleId) {
+  const ctxStr = prompt('Enter evaluation context as JSON (e.g. {"price":150,"category":"Reference"}):', '{}');
+  if (ctxStr === null) return;
+  let ctx;
+  try { ctx = JSON.parse(ctxStr); } catch { toast('Invalid JSON', true); return; }
+  try {
+    const result = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/rules/' + ruleId + '/evaluate', { method: 'POST', headers: authHeaders(true), body: JSON.stringify(ctx) });
+    const evalDiv = document.getElementById('rule-eval-result');
+    let html = '<div style="padding:10px;border:1px solid #dce3ee;border-radius:4px;background:#fafbfd;">';
+    html += '<div><strong>Result:</strong> <span class="status-badge ' + (result.passed ? 'status-up' : 'status-down') + '">' + result.passed + '</span></div>';
+    html += '<div style="margin-top:6px;"><strong>Trace:</strong></div>';
+    html += '<ul style="margin:4px 0 0 0;font-size:13px;font-family:monospace;">';
+    (result.trace || []).forEach(t => { html += '<li>' + esc(t) + '</li>'; });
+    html += '</ul></div>';
+    evalDiv.innerHTML = html;
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deleteRule(ruleId) {
+  if (!confirm('Delete rule "' + ruleId + '"?')) return;
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/rules/' + ruleId, { method: 'DELETE', headers: authHeaders(false) });
+    toast('Rule deleted');
+    loadRules();
+  } catch (e) { toast(e.message, true); }
+}
+
+// Ontology Assist
+async function loadProposals() {
+  const listDiv = document.getElementById('oa-proposal-list');
+  try {
+    const proposals = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/ontology-assist/proposals', { headers: authHeaders(false) });
+    if (!proposals || proposals.length === 0) {
+      listDiv.innerHTML = '<em style="color:#637083;">No ontology proposals yet.</em>';
+      return;
+    }
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f0f3f8;">';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;">Title</th>';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;">Source</th>';
+    html += '<th style="padding:6px 10px;text-align:center;border-bottom:2px solid #dce3ee;">Status</th>';
+    html += '<th style="padding:6px 10px;text-align:center;border-bottom:2px solid #dce3ee;">Actions</th>';
+    html += '</tr></thead><tbody>';
+    proposals.forEach(p => {
+      html += '<tr>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;">' + esc(p.title) + '</td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;"><span class="status-badge status-unknown">' + esc(p.source) + '</span></td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:center;"><span class="status-badge ' + (p.status === 'applied' ? 'status-up' : p.status === 'rejected' ? 'status-down' : 'status-unknown') + '">' + esc(p.status) + '</span></td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:center;">';
+      if (p.status === 'draft') {
+        html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="applyProposal(\'' + p.id + '\')">Apply</button> ';
+        html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="rejectProposal(\'' + p.id + '\')">Reject</button> ';
+      }
+      html += '<button class="danger" style="padding:2px 8px;font-size:12px;" onclick="deleteProposal(\'' + p.id + '\')">Del</button>';
+      html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    listDiv.innerHTML = html;
+  } catch (e) { listDiv.innerHTML = '<em style="color:#c62828;">Failed to load proposals: ' + esc(e.message) + '</em>'; }
+}
+
+document.getElementById('oa-extract-btn').addEventListener('click', async () => {
+  const title = document.getElementById('oa-title').value.trim() || 'Ontology Proposal';
+  const description = document.getElementById('oa-description').value.trim();
+  if (!description) { toast('Enter a domain description', true); return; }
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/ontology-assist/extract', { method: 'POST', headers: authHeaders(true), body: JSON.stringify({ title: title, description: description }) });
+    toast('Proposal created');
+    loadProposals();
+  } catch (e) { toast(e.message, true); }
+});
+
+document.getElementById('oa-ddl-btn').addEventListener('click', async () => {
+  const output = document.getElementById('oa-ddl-output');
+  output.style.display = 'block';
+  output.textContent = 'Fetching DDL hints...';
+  try {
+    const hints = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/ontology-assist/ddl-hints', { headers: authHeaders(false) });
+    if (hints.success) {
+      output.textContent = hints.schemaText || 'No schema found';
+    } else {
+      output.textContent = 'Error: ' + (hints.error || 'Unknown');
+    }
+  } catch (e) { output.textContent = 'Error: ' + e.message; }
+});
+
+document.getElementById('oa-ddl-gen-btn').addEventListener('click', async () => {
+  const title = document.getElementById('oa-title').value.trim() || 'DDL-generated Ontology';
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/ontology-assist/generate-from-ddl', { method: 'POST', headers: authHeaders(true), body: JSON.stringify({ title: title }) });
+    toast('Proposal generated from DDL');
+    loadProposals();
+  } catch (e) { toast(e.message, true); }
+});
+
+async function applyProposal(proposalId) {
+  if (!confirm('Apply proposal "' + proposalId + '"? This will modify the tenant\'s ontology.')) return;
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/ontology-assist/proposals/' + proposalId + '/apply', { method: 'POST', headers: authHeaders(false) });
+    toast('Proposal applied');
+    loadProposals();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function rejectProposal(proposalId) {
+  const reason = prompt('Rejection reason (optional):', '');
+  if (reason === null) return;
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/ontology-assist/proposals/' + proposalId + '/reject', { method: 'POST', headers: authHeaders(true), body: JSON.stringify({ reason: reason }) });
+    toast('Proposal rejected');
+    loadProposals();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function deleteProposal(proposalId) {
+  if (!confirm('Delete proposal "' + proposalId + '"?')) return;
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/ontology-assist/proposals/' + proposalId, { method: 'DELETE', headers: authHeaders(false) });
+    toast('Proposal deleted');
+    loadProposals();
+  } catch (e) { toast(e.message, true); }
+}
+
+// Documents
+async function loadDocuments() {
+  const listDiv = document.getElementById('doc-list');
+  try {
+    const docs = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/documents', { headers: authHeaders(false) });
+    if (!docs || docs.length === 0) {
+      listDiv.innerHTML = '<em style="color:#637083;">No documents uploaded yet.</em>';
+      return;
+    }
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:13px;"><thead><tr style="background:#f0f3f8;">';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;">Name</th>';
+    html += '<th style="padding:6px 10px;text-align:left;border-bottom:2px solid #dce3ee;">Status</th>';
+    html += '<th style="padding:6px 10px;text-align:center;border-bottom:2px solid #dce3ee;">Chunks</th>';
+    html += '<th style="padding:6px 10px;text-align:center;border-bottom:2px solid #dce3ee;">Actions</th>';
+    html += '</tr></thead><tbody>';
+    docs.forEach(d => {
+      html += '<tr>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;">' + esc(d.name) + '</td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;"><span class="status-badge ' + (d.status === 'READY' ? 'status-up' : d.status === 'ERROR' ? 'status-down' : 'status-unknown') + '">' + esc(d.status) + '</span></td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:center;">' + d.chunkCount + '</td>';
+      html += '<td style="padding:4px 10px;border-bottom:1px solid #eef2f7;text-align:center;">';
+      html += '<button class="secondary" style="padding:2px 8px;font-size:12px;" onclick="viewChunks(\'' + d.id + '\')">Chunks</button> ';
+      html += '<button class="danger" style="padding:2px 8px;font-size:12px;" onclick="deleteDocument(\'' + d.id + '\')">Del</button>';
+      html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    listDiv.innerHTML = html;
+  } catch (e) { listDiv.innerHTML = '<em style="color:#c62828;">Failed to load documents: ' + esc(e.message) + '</em>'; }
+}
+
+document.getElementById('doc-upload-btn').addEventListener('click', async () => {
+  const fileInput = document.getElementById('doc-file-input');
+  const file = fileInput.files[0];
+  if (!file) { toast('Select a file first', true); return; }
+  const formData = new FormData();
+  formData.append('file', file);
+  const h = {};
+  if (getApiKey()) h['X-API-Key'] = getApiKey();
+  try {
+    const res = await fetch(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/documents/upload', { method: 'POST', headers: h, body: formData });
+    if (!res.ok) { const e = await res.json(); throw new Error(e.message || res.statusText); }
+    toast('Document uploaded and processed');
+    fileInput.value = '';
+    loadDocuments();
+  } catch (e) { toast(e.message, true); }
+});
+
+async function viewChunks(docId) {
+  const div = document.getElementById('doc-chunk-view');
+  try {
+    const chunks = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/documents/' + docId + '/chunks', { headers: authHeaders(false) });
+    if (!chunks || chunks.length === 0) { div.innerHTML = '<em style="color:#637083;">No chunks.</em>'; return; }
+    let html = '<div style="border:1px solid #dce3ee;border-radius:4px;padding:10px;background:#fafbfd;"><strong>Chunks (' + chunks.length + ')</strong>';
+    chunks.forEach(c => {
+      html += '<div style="margin-top:6px;padding:6px;background:#f0f3f8;border-radius:4px;font-size:12px;">';
+      html += '<div style="color:#637083;">#' + c.chunkIndex + '</div>';
+      html += '<div style="white-space:pre-wrap;word-break:break-word;margin-top:2px;">' + esc(c.content.substring(0, 300)) + (c.content.length > 300 ? '...' : '') + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    div.innerHTML = html;
+  } catch (e) { div.innerHTML = '<div style="color:#c62828;">Error: ' + esc(e.message) + '</div>'; }
+}
+
+async function deleteDocument(docId) {
+  if (!confirm('Delete document "' + docId + '"?')) return;
+  try {
+    await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/documents/' + docId, { method: 'DELETE', headers: authHeaders(false) });
+    toast('Document deleted');
+    loadDocuments();
+    document.getElementById('doc-chunk-view').innerHTML = '';
+  } catch (e) { toast(e.message, true); }
+}
+
+document.getElementById('doc-query-btn').addEventListener('click', async () => {
+  const query = document.getElementById('doc-query-input').value.trim();
+  if (!query) { toast('Enter a search query', true); return; }
+  const resultsDiv = document.getElementById('doc-query-results');
+  resultsDiv.innerHTML = '<em style="color:#637083;">Searching...</em>';
+  try {
+    const results = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/documents/query', { method: 'POST', headers: authHeaders(true), body: JSON.stringify({ query: query, topK: 5 }) });
+    if (!results || results.length === 0) {
+      resultsDiv.innerHTML = '<em style="color:#637083;">No matching results.</em>';
+      return;
+    }
+    let html = '<div style="border:1px solid #dce3ee;border-radius:4px;padding:10px;background:#fafbfd;"><strong>Top Results</strong>';
+    results.forEach(r => {
+      html += '<div style="margin-top:6px;padding:6px;background:#f0f3f8;border-radius:4px;font-size:12px;">';
+      html += '<div style="color:#637083;">Score: ' + r.score.toFixed(4) + ' | Doc: ' + esc(r.documentId) + ' #' + r.chunkIndex + '</div>';
+      html += '<div style="white-space:pre-wrap;word-break:break-word;margin-top:2px;">' + esc(r.content.substring(0, 300)) + (r.content.length > 300 ? '...' : '') + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    resultsDiv.innerHTML = html;
+  } catch (e) { resultsDiv.innerHTML = '<div style="color:#c62828;">Error: ' + esc(e.message) + '</div>'; }
+});
+
+const origLoadTenant = loadTenant;
+loadTenant = function() {
+  origLoadTenant.call(this);
+  loadActions();
+  loadWorkflows();
+  loadRules();
+  loadDocuments();
+  loadProposals();
+};
 
 if (getApiKey()) loadTenant();
 </script>
