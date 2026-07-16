@@ -66,7 +66,7 @@
 
 ## 7. Integration & Polish
 
-- [ ] 7.1 Verify all new endpoints are secured by ApiKeyFilter
-- [ ] 7.2 Update Swagger/API docs for all new endpoints
-- [ ] 7.3 Run full test suite and fix any regressions
-- [ ] 7.4 Verify MCP conformance for all new tools/resources
+- [x] 7.1 Verify API key security — all new endpoints under `/api/v1/tenants/...` are NOT in public paths, covered by ApiKeyFilter (consistent with existing endpoints)
+- [x] 7.2 Swagger auto-discovers all new `@RestController` endpoints under the existing `ontology-platform` group; no code changes needed
+- [x] 7.3 Full test suite: 233 tests pass (207 existing + 11 doc + 15 ontology assist), zero regressions
+- [x] 7.4 MCP conformance: 15 tools registered (tenant_list/info, sparql_query, sql_query, nlq_query, rule_list/evaluate, action_list/execute, workflow_list/execute, document_list/query, ontology_extract/apply_proposal) + 1 resource + 2 resource templates; server capabilities: tools=true, resources=false+true
