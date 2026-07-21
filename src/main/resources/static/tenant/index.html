@@ -302,16 +302,16 @@ document.getElementById('save-apply-btn').addEventListener('click', async () => 
   try {
     const result = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/apply', { method: 'POST', headers: authHeaders(true), body: JSON.stringify(body) });
     toast('Applied - Engine ' + (result.health || 'unknown'));
-    loadTenant();
   } catch (e) { toast(e.message, true); }
+  loadTenant();
 });
 
 document.getElementById('reinit-btn').addEventListener('click', async () => {
   try {
     const r = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId) + '/reinit', { method: 'POST', headers: authHeaders(false) });
     toast(r.status || 'Reinitialized');
-    loadTenant();
   } catch (e) { toast(e.message, true); }
+  loadTenant();
 });
 
 document.getElementById('gen-owl-btn').addEventListener('click', () => {
@@ -340,8 +340,8 @@ document.getElementById('save-btn').addEventListener('click', async () => {
   try {
     const r = await api(API_BASE + '/tenants/' + encodeURIComponent(tenantId), { method: 'PUT', headers: authHeaders(true), body: JSON.stringify(body) });
     toast(r.status || 'Saved');
-    loadTenant();
   } catch (e) { toast(e.message, true); }
+  loadTenant();
 });
 
 document.getElementById('delete-btn').addEventListener('click', async () => {

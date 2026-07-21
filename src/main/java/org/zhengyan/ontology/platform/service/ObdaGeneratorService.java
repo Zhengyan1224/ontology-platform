@@ -72,10 +72,8 @@ public class ObdaGeneratorService {
             StringBuilder sb = new StringBuilder();
             sb.append("[PrefixDeclaration]\n");
             sb.append(":\t\t").append(ns).append("\n");
-            sb.append("owl:\t\t<http://www.w3.org/2002/07/owl#>\n");
-            sb.append("rdf:\t\t<http://www.w3.org/1999/02/22-rdf-syntax-ns#>\n");
-            sb.append("xsd:\t\t<http://www.w3.org/2001/XMLSchema#>\n");
-            sb.append("rdfs:\t\t<http://www.w3.org/2000/01/rdf-schema#>\n\n");
+            sb.append("rdf:\t\thttp://www.w3.org/1999/02/22-rdf-syntax-ns#\n");
+            sb.append("xsd:\t\thttp://www.w3.org/2001/XMLSchema#\n\n");
 
             for (JdbcMetadataReader.TableInfo table : tables) {
                 if (!shouldExposeTable(table.name)) continue;

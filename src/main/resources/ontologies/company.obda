@@ -1,0 +1,35 @@
+[PrefixDeclaration]
+:		http://ontology.zhengyan.org/ontology/company#
+rdf:		http://www.w3.org/1999/02/22-rdf-syntax-ns#
+xsd:		http://www.w3.org/2001/XMLSchema#
+
+[MappingDeclaration] @collection [[
+mappingId	cl_Attendance
+target		:attendance/{ID} rdf:type :Attendance ; :id {ID}^^xsd:integer ; :empId :employee/{EMP_ID} ; :checkdate {CHECK_DATE}^^xsd:date ; :checkintime {CHECK_IN_TIME}^^xsd:dateTime ; :checkouttime {CHECK_OUT_TIME}^^xsd:dateTime ; :status {STATUS} .
+source		SELECT "ID", "EMP_ID", "CHECK_DATE", "CHECK_IN_TIME", "CHECK_OUT_TIME", "STATUS" FROM "ATTENDANCE"
+]]
+
+[MappingDeclaration] @collection [[
+mappingId	cl_Department
+target		:department/{ID} rdf:type :Department ; :id {ID}^^xsd:integer ; :deptname {DEPT_NAME} ; :location {LOCATION} ; :createdat {CREATED_AT}^^xsd:dateTime .
+source		SELECT "ID", "DEPT_NAME", "LOCATION", "CREATED_AT" FROM "DEPARTMENT"
+]]
+
+[MappingDeclaration] @collection [[
+mappingId	cl_Employee
+target		:employee/{ID} rdf:type :Employee ; :id {ID}^^xsd:integer ; :empname {EMP_NAME} ; :deptId :department/{DEPT_ID} ; :posId :position/{POS_ID} ; :hiredate {HIRE_DATE}^^xsd:date .
+source		SELECT "ID", "EMP_NAME", "DEPT_ID", "POS_ID", "HIRE_DATE" FROM "EMPLOYEE"
+]]
+
+[MappingDeclaration] @collection [[
+mappingId	cl_Position
+target		:position/{ID} rdf:type :Position ; :id {ID}^^xsd:integer ; :title {TITLE} ; :minsalary {MIN_SALARY}^^xsd:decimal ; :maxsalary {MAX_SALARY}^^xsd:decimal .
+source		SELECT "ID", "TITLE", "MIN_SALARY", "MAX_SALARY" FROM "POSITION"
+]]
+
+[MappingDeclaration] @collection [[
+mappingId	cl_Project
+target		:project/{ID} rdf:type :Project ; :id {ID}^^xsd:integer ; :projectname {PROJECT_NAME} ; :startdate {START_DATE}^^xsd:date ; :enddate {END_DATE}^^xsd:date ; :budget {BUDGET}^^xsd:decimal .
+source		SELECT "ID", "PROJECT_NAME", "START_DATE", "END_DATE", "BUDGET" FROM "PROJECT"
+]]
+

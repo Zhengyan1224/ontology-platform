@@ -1,0 +1,158 @@
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@base <http://ontology.zhengyan.org/ontology/company#> .
+
+<http://ontology.zhengyan.org/ontology/company#> rdf:type owl:Ontology .
+
+### ATTENDANCE
+:Attendance rdf:type owl:Class ;
+    rdfs:label "ATTENDANCE" ;
+    rdfs:subClassOf owl:Thing .
+
+### DEPARTMENT
+:Department rdf:type owl:Class ;
+    rdfs:label "DEPARTMENT" ;
+    rdfs:subClassOf owl:Thing .
+
+### EMPLOYEE
+:Employee rdf:type owl:Class ;
+    rdfs:label "EMPLOYEE" ;
+    rdfs:subClassOf owl:Thing .
+
+### POSITION
+:Position rdf:type owl:Class ;
+    rdfs:label "POSITION" ;
+    rdfs:subClassOf owl:Thing .
+
+### PROJECT
+:Project rdf:type owl:Class ;
+    rdfs:label "PROJECT" ;
+    rdfs:subClassOf owl:Thing .
+
+:id rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Attendance ;
+    rdfs:range xsd:integer ;
+    rdfs:label "ID" .
+:id rdf:type owl:FunctionalProperty .
+
+:empId rdf:type owl:ObjectProperty ;
+    rdfs:domain :Attendance ;
+    rdfs:range :Employee ;
+    rdfs:label "EMP_ID" .
+
+:checkdate rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Attendance ;
+    rdfs:range xsd:date ;
+    rdfs:label "CHECK_DATE" .
+
+:checkintime rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Attendance ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "CHECK_IN_TIME" .
+
+:checkouttime rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Attendance ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "CHECK_OUT_TIME" .
+
+:status rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Attendance ;
+    rdfs:range xsd:string ;
+    rdfs:label "STATUS" .
+
+:id rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Department ;
+    rdfs:range xsd:integer ;
+    rdfs:label "ID" .
+:id rdf:type owl:FunctionalProperty .
+
+:deptname rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Department ;
+    rdfs:range xsd:string ;
+    rdfs:label "DEPT_NAME" .
+
+:location rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Department ;
+    rdfs:range xsd:string ;
+    rdfs:label "LOCATION" .
+
+:createdat rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Department ;
+    rdfs:range xsd:dateTime ;
+    rdfs:label "CREATED_AT" .
+
+:id rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Employee ;
+    rdfs:range xsd:integer ;
+    rdfs:label "ID" .
+:id rdf:type owl:FunctionalProperty .
+
+:empname rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Employee ;
+    rdfs:range xsd:string ;
+    rdfs:label "EMP_NAME" .
+
+:deptId rdf:type owl:ObjectProperty ;
+    rdfs:domain :Employee ;
+    rdfs:range :Department ;
+    rdfs:label "DEPT_ID" .
+
+:posId rdf:type owl:ObjectProperty ;
+    rdfs:domain :Employee ;
+    rdfs:range :Position ;
+    rdfs:label "POS_ID" .
+
+:hiredate rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Employee ;
+    rdfs:range xsd:date ;
+    rdfs:label "HIRE_DATE" .
+
+:id rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Position ;
+    rdfs:range xsd:integer ;
+    rdfs:label "ID" .
+:id rdf:type owl:FunctionalProperty .
+
+:title rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Position ;
+    rdfs:range xsd:string ;
+    rdfs:label "TITLE" .
+
+:minsalary rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Position ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "MIN_SALARY" .
+
+:maxsalary rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Position ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "MAX_SALARY" .
+
+:id rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Project ;
+    rdfs:range xsd:integer ;
+    rdfs:label "ID" .
+:id rdf:type owl:FunctionalProperty .
+
+:projectname rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Project ;
+    rdfs:range xsd:string ;
+    rdfs:label "PROJECT_NAME" .
+
+:startdate rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Project ;
+    rdfs:range xsd:date ;
+    rdfs:label "START_DATE" .
+
+:enddate rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Project ;
+    rdfs:range xsd:date ;
+    rdfs:label "END_DATE" .
+
+:budget rdf:type owl:DatatypeProperty ;
+    rdfs:domain :Project ;
+    rdfs:range xsd:decimal ;
+    rdfs:label "BUDGET" .
+

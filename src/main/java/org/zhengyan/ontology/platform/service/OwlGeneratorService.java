@@ -3,9 +3,12 @@ package org.zhengyan.ontology.platform.service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.zhengyan.ontology.platform.config.OwlGenerationProperties;
 import org.zhengyan.ontology.platform.exception.OwlGenerationException;
 import org.zhengyan.ontology.platform.model.Tenant;
+import org.zhengyan.ontology.platform.repository.TenantContentRepository;
 
 import java.io.StringWriter;
 import java.sql.Connection;
@@ -24,10 +27,13 @@ public class OwlGeneratorService {
 
     private final OwlGenerationProperties namingProperties;
     private final JdbcMetadataReader metadataReader;
+    private final TenantContentRepository tenantContentRepository;
 
-    public OwlGeneratorService(OwlGenerationProperties namingProperties, JdbcMetadataReader metadataReader) {
+    public OwlGeneratorService(OwlGenerationProperties namingProperties, JdbcMetadataReader metadataReader,
+                               TenantContentRepository tenantContentRepository) {
         this.namingProperties = namingProperties;
         this.metadataReader = metadataReader;
+        this.tenantContentRepository = tenantContentRepository;
     }
 
     private String resolveClassName(String tableName) {
@@ -127,9 +133,33 @@ public class OwlGeneratorService {
                 }
             }
 
+            sw.append("### User-defined axioms\n");
+            appendUserAxioms(sw, tenant.getId(), ns);
+
             return sw.toString();
         } catch (SQLException e) {
             throw new OwlGenerationException("Failed to generate OWL for tenant: " + tenant.getId(), e);
+        }
+    }
+
+    private void appendUserAxioms(StringWriter sw, String tenantId, String ns) {
+        try {
+            TenantContentRepository.TenantContent content = tenantContentRepository.findByTenantId(tenantId);
+            if (content == null || content.axiomConfig() == null || content.axiomConfig().isBlank()) return;
+
+            JsonNode root = new ObjectMapper().readTree(content.axiomConfig());
+            JsonNode subClassOf = root.get("subClassOf");
+            if (subClassOf != null && subClassOf.isArray()) {
+                for (JsonNode entry : subClassOf) {
+                    String child = entry.has("child") ? entry.get("child").asText() : null;
+                    String parent = entry.has("parent") ? entry.get("parent").asText() : null;
+                    if (child != null && parent != null) {
+                        sw.append(":").append(child).append(" rdfs:subClassOf :").append(parent).append(" .\n");
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to append user axioms for tenant [{}]: {}", tenantId, e.getMessage());
         }
     }
 }

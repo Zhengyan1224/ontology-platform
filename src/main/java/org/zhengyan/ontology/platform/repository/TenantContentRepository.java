@@ -27,10 +27,21 @@ public class TenantContentRepository {
     }
 
     public void upsert(String tenantId, String owlContent, String obdaContent) {
+        upsert(tenantId, owlContent, obdaContent, null);
+    }
+
+    public void upsert(String tenantId, String owlContent, String obdaContent, String axiomConfig) {
         jdbcTemplate.update(
-                "MERGE INTO tenant_content (tenant_id, owl_content, obda_content, updated_at) KEY (tenant_id) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
-                tenantId, owlContent, obdaContent);
+                "MERGE INTO tenant_content (tenant_id, owl_content, obda_content, axiom_config, updated_at) KEY (tenant_id) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)",
+                tenantId, owlContent, obdaContent, axiomConfig);
         log.info("Saved content for tenant [{}]", tenantId);
+    }
+
+    public void updateAxiomConfig(String tenantId, String axiomConfig) {
+        jdbcTemplate.update(
+                "MERGE INTO tenant_content (tenant_id, owl_content, obda_content, axiom_config, updated_at) KEY (tenant_id) VALUES (?, NULL, NULL, ?, CURRENT_TIMESTAMP)",
+                tenantId, axiomConfig);
+        log.info("Updated axiom_config for tenant [{}]", tenantId);
     }
 
     public void deleteByTenantId(String tenantId) {
@@ -42,8 +53,9 @@ public class TenantContentRepository {
         return new TenantContent(
                 rs.getString("tenant_id"),
                 rs.getString("owl_content"),
-                rs.getString("obda_content"));
+                rs.getString("obda_content"),
+                rs.getString("axiom_config"));
     }
 
-    public record TenantContent(String tenantId, String owlContent, String obdaContent) {}
+    public record TenantContent(String tenantId, String owlContent, String obdaContent, String axiomConfig) {}
 }

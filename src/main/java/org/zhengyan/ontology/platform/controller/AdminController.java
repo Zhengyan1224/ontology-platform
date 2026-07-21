@@ -83,7 +83,13 @@ public class AdminController {
         m.put("owlContent", tenant.getOwlContent());
         m.put("obdaContent", tenant.getObdaContent());
         m.put("health", engineRegistry.isHealthy(tenantId) ? "UP" : "not_initialized");
-        m.put("templateCount", schemaProvider.getSchemaForTenant(tenantId) != null ? 1 : 0);
+        try {
+            String desc = schemaProvider.getSchemaForTenant(tenantId);
+            m.put("templateCount", desc != null ? 1 : 0);
+        } catch (Exception e) {
+            log.warn("Failed to get schema description for tenant [{}]: {}", tenantId, e.getMessage());
+            m.put("templateCount", 0);
+        }
         return ResponseEntity.ok(m);
     }
 
@@ -235,13 +241,22 @@ public class AdminController {
 
     @PostMapping("/tenants/{tenantId}/reinit")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, Object>> reinitialize(@PathVariable String tenantId) {
-        engineRegistry.reinitialize(tenantId);
-        cachedSparqlService.evictForTenant(tenantId);
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put(KEY_TENANT_ID, tenantId);
-        result.put(KEY_STATUS, "reinitialized");
-        return ResponseEntity.ok(result);
+    public ResponseEntity<?> reinitialize(@PathVariable String tenantId) {
+        try {
+            engineRegistry.reinitialize(tenantId);
+            cachedSparqlService.evictForTenant(tenantId);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put(KEY_TENANT_ID, tenantId);
+            result.put(KEY_STATUS, "reinitialized");
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.warn("Engine reinitialization failed for tenant [{}]: {}", tenantId, e.getMessage());
+            Map<String, Object> err = new LinkedHashMap<>();
+            err.put(KEY_ERROR, "REINIT_FAILED");
+            err.put(KEY_MESSAGE, "Engine reinitialization failed: " + e.getMessage());
+            err.put(KEY_TENANT_ID, tenantId);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(err);
+        }
     }
 
     @PostMapping("/cache/clear")

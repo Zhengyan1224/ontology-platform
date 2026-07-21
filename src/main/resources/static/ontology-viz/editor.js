@@ -1,5 +1,13 @@
 let currentEditableConfig = null;
 let currentTenantId = null;
+let network = null;
+let nodesDataSet = null;
+let edgesDataSet = null;
+
+// AxiomConfig state (user-added axioms, not yet applied)
+let axiomConfig = { subClassOf: [], layout: {} };
+let isEditMode = false;
+let appliedAxiomIds = new Set();
 
 function getApiKey() {
   return document.getElementById('api-key-input').value.trim();
@@ -22,8 +30,30 @@ async function fetchJSON(url, options) {
   return res.json();
 }
 
+// --- Mode Toggle ---
+
+document.getElementById('mode-view').addEventListener('click', () => setMode(false));
+document.getElementById('mode-edit').addEventListener('click', () => setMode(true));
+
+function setMode(edit) {
+  isEditMode = edit;
+  document.getElementById('mode-view').className = edit ? '' : 'active';
+  document.getElementById('mode-edit').className = edit ? 'active' : '';
+  document.getElementById('apply-button').style.display = edit ? '' : 'none';
+
+  if (!network) return;
+  if (isEditMode) {
+    network.on('click', onEditClick);
+  } else {
+    network.off('click', onEditClick);
+  }
+}
+
+// --- Load Draft ---
+
 async function loadDraft(tenantId) {
   currentTenantId = tenantId;
+  await loadAxiomConfig(tenantId);
   const leftPanel = document.getElementById('left-panel');
   leftPanel.innerHTML = '<div class="panel-header">Loading draft...</div>';
   try {
@@ -41,6 +71,467 @@ async function loadDraft(tenantId) {
   }
 }
 
+// --- AxiomConfig Management ---
+
+async function loadAxiomConfig(tenantId) {
+  try {
+    const data = await fetchJSON('/api/v1/tenants/' + encodeURIComponent(tenantId) + '/axiom-config', { headers: authHeaders() });
+    axiomConfig.subClassOf = data.subClassOf || [];
+    axiomConfig.layout = data.layout || {};
+    appliedAxiomIds = new Set(axiomConfig.subClassOf.map(a => a.id));
+  } catch (e) {
+    axiomConfig = { subClassOf: [], layout: {} };
+    appliedAxiomIds = new Set();
+  }
+}
+
+async function saveAxiomConfig() {
+  if (!currentTenantId) return;
+  const body = { subClassOf: axiomConfig.subClassOf, layout: axiomConfig.layout };
+  await fetchJSON('/api/v1/tenants/' + encodeURIComponent(currentTenantId) + '/axiom-config', {
+    method: 'PUT',
+    headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+    body: JSON.stringify(body)
+  });
+}
+
+// --- Graph Integration ---
+
+function renderGraph(data) {
+  if (!data || !data.nodes) {
+    showMessage('No graph data');
+    return;
+  }
+
+  const nodeIds = new Set();
+  const nodes = [];
+
+  function addNode(n, fallbackType) {
+    const id = n.id || n.name;
+    if (!id || nodeIds.has(id)) return;
+    nodeIds.add(id);
+    const type = n.type || fallbackType || 'property';
+    nodes.push({
+      id: id,
+      label: n.label || n.name || id,
+      title: (type || '') + ': ' + (n.label || n.name || id),
+      group: type,
+      shape: nodeShape(type),
+      color: nodeColor(type)
+    });
+  }
+
+  (data.nodes || []).forEach(n => addNode(n, 'property'));
+
+  (data.edges || []).forEach(e => {
+    if (e.source && !nodeIds.has(e.source)) addNode({ id: e.source, label: e.source, type: 'property' });
+    if (e.target && !nodeIds.has(e.target)) addNode({ id: e.target, label: e.target, type: e.propertyType === 'datatype' ? 'datatype' : 'property' });
+  });
+
+  // Add user axiom edges (dashed)
+  const axiomEdges = [];
+  for (const axiom of axiomConfig.subClassOf) {
+    const applied = appliedAxiomIds.has(axiom.id);
+    if (!nodeIds.has(axiom.child) || !nodeIds.has(axiom.parent)) continue;
+    axiomEdges.push({
+      from: axiom.child,
+      to: axiom.parent,
+      label: 'subClassOf',
+      arrows: 'to',
+      font: { size: 11, color: applied ? '#1976d2' : '#ff9800' },
+      color: { color: applied ? '#1976d2' : '#ff9800', highlight: '#333' },
+      dashes: !applied,
+      axiomId: axiom.id,
+      width: applied ? 1 : 2
+    });
+  }
+
+  if (nodes.length === 0) {
+    showMessage('No graph nodes available');
+    return;
+  }
+
+  const baseEdges = (data.edges || [])
+    .filter(e => e.source && e.target && nodeIds.has(e.source) && nodeIds.has(e.target))
+    .map(e => ({
+      from: e.source,
+      to: e.target,
+      label: e.label || '',
+      arrows: 'to',
+      font: { size: 11, color: '#666' },
+      color: { color: '#999', highlight: '#333' },
+      dashes: false
+    }));
+
+  const allEdges = baseEdges.concat(axiomEdges);
+
+  nodesDataSet = new vis.DataSet(nodes);
+  edgesDataSet = new vis.DataSet(allEdges);
+
+  const container = document.getElementById('graph-container');
+  container.textContent = '';
+  const options = {
+    autoResize: true,
+    width: '100%',
+    height: '100%',
+    physics: {
+      enabled: true,
+      solver: 'forceAtlas2Based',
+      stabilization: { enabled: true, iterations: 150, fit: true },
+      forceAtlas2Based: { gravitationalConstant: -60, springLength: 140, springConstant: 0.06 }
+    },
+    interaction: { hover: true, tooltipDelay: 200, multiselect: false },
+    layout: { improvedLayout: true },
+    edges: { smooth: { type: 'continuous' } },
+    manipulation: {
+      enabled: false,
+      addEdge: function(edgeData, callback) { handleAddEdge(edgeData, callback); }
+    }
+  };
+
+  if (network) network.destroy();
+  network = new vis.Network(container, { nodes: nodesDataSet, edges: edgesDataSet }, options);
+
+  if (isEditMode) {
+    network.on('click', onEditClick);
+    network.on('oncontext', onContextMenu);
+    network.setOptions({ manipulation: { enabled: true } });
+  }
+
+  // Restore layout
+  applyLayout();
+
+  network.once('stabilizationIterationsDone', () => {
+    network.setOptions({ physics: false });
+    if (!hasSavedLayout()) {
+      network.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+    }
+  });
+  setTimeout(() => { if (network) network.fit(); }, 100);
+}
+
+function hasSavedLayout() {
+  return Object.keys(axiomConfig.layout).length > 0;
+}
+
+function applyLayout() {
+  if (!network || !axiomConfig.layout) return;
+  const positions = {};
+  for (const [id, pos] of Object.entries(axiomConfig.layout)) {
+    if (nodesDataSet && nodesDataSet.get(id)) {
+      positions[id] = { x: pos.x, y: pos.y };
+    }
+  }
+  if (Object.keys(positions).length > 0) {
+    network.storePositions();
+    network.moveNode(positions);
+    network.setOptions({ physics: false });
+  }
+}
+
+function nodeShape(type) {
+  if (type === 'class') return 'ellipse';
+  if (type === 'datatype') return 'box';
+  return 'diamond';
+}
+
+function nodeColor(type) {
+  if (type === 'class') return { background: '#e3f2fd', border: '#1976d2' };
+  if (type === 'datatype') return { background: '#e8f5e9', border: '#2e7d32' };
+  return { background: '#fce4ec', border: '#c62828' };
+}
+
+// --- Edit Click Handler ---
+
+function onEditClick(params) {
+  if (params.nodes.length > 0) {
+    editNode(params.nodes[0]);
+  }
+}
+
+function editNode(nodeId) {
+  if (!currentEditableConfig) return;
+  const table = findTableByClassName(nodeId);
+  if (table) {
+    editClassNode(nodeId);
+    return;
+  }
+  const parts = findPropertyByNodeId(nodeId);
+  if (parts) {
+    editPropertyNode(nodeId);
+  }
+}
+
+// --- Drag-to-Create Edge ---
+
+function handleAddEdge(edgeData, callback) {
+  const fromNode = edgeData.from;
+  const toNode = edgeData.to;
+  if (!fromNode || !toNode) { callback(null); return; }
+
+  showEdgeDialog(fromNode, toNode, function(confirmed) {
+    if (confirmed) {
+      const id = generateId();
+      axiomConfig.subClassOf.push({ child: fromNode, parent: toNode, id: id });
+      edgesDataSet.add({
+        from: fromNode,
+        to: toNode,
+        label: 'subClassOf',
+        arrows: 'to',
+        font: { size: 11, color: '#ff9800' },
+        color: { color: '#ff9800', highlight: '#333' },
+        dashes: true,
+        axiomId: id,
+        width: 2
+      });
+      network.setOptions({ physics: true });
+      network.stabilize();
+    }
+    callback(null);
+  });
+}
+
+function showEdgeDialog(fromNode, toNode, callback) {
+  const existing = document.querySelector('.edge-dialog-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'edge-dialog-overlay';
+  overlay.onclick = function(e) { if (e.target === overlay) { overlay.remove(); callback(false); } };
+
+  const panel = document.createElement('div');
+  panel.className = 'edge-dialog';
+  panel.innerHTML = '<h3>Create Relationship</h3>';
+  panel.innerHTML += '<p style="font-size:14px;color:#333;margin-bottom:16px;">';
+  panel.innerHTML += '<strong>' + escapeHtml(fromNode) + '</strong> → <strong>' + escapeHtml(toNode) + '</strong></p>';
+  panel.innerHTML += '<div class="edge-type-option">';
+  panel.innerHTML += '<input type="radio" name="edge-type" id="edge-subclassof" value="subClassOf" checked>';
+  panel.innerHTML += '<label for="edge-subclassof"><strong>subClassOf</strong> — ' + escapeHtml(fromNode) + ' is a subclass of ' + escapeHtml(toNode) + '</label>';
+  panel.innerHTML += '</div>';
+  panel.innerHTML += '<div class="edge-dialog-actions">';
+  panel.innerHTML += '<button onclick="this.closest(\'.edge-dialog-overlay\').remove(); callback(false)">Cancel</button>';
+  panel.innerHTML += '<button class="primary" onclick="this.closest(\'.edge-dialog-overlay\').remove(); callback(true)">Create</button>';
+  panel.innerHTML += '</div>';
+
+  // Override callback scope
+  const cancelBtn = panel.querySelector('.edge-dialog-actions button:first-child');
+  const createBtn = panel.querySelector('.edge-dialog-actions button.primary');
+  cancelBtn.onclick = function() { overlay.remove(); callback(false); };
+  createBtn.onclick = function() { overlay.remove(); callback(true); };
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+}
+
+// --- Right-Click Context Menu ---
+
+function onContextMenu(params) {
+  params.event.preventDefault();
+  removeContextMenu();
+
+  if (params.nodes.length > 0) {
+    showNodeContextMenu(params.nodes[0], params.event);
+  } else if (params.edges.length > 0) {
+    showEdgeContextMenu(params.edges[0], params.event);
+  }
+}
+
+function showNodeContextMenu(nodeId, event) {
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+
+  const node = nodesDataSet ? nodesDataSet.get(nodeId) : null;
+  const title = document.createElement('div');
+  title.style.cssText = 'padding:6px 16px;font-size:11px;color:#999;border-bottom:1px solid #eee;';
+  title.textContent = (node ? node.group : 'Node') + ': ' + nodeId;
+  menu.appendChild(title);
+
+  addMenuItem(menu, '✏ Edit Name', function() { editClassNode(nodeId); removeContextMenu(); });
+  addMenuItem(menu, '➕ Add Subclass', function() { addSubclass(nodeId); removeContextMenu(); });
+  addMenuItem(menu, '❌ Delete Class', function() { deleteClass(nodeId); removeContextMenu(); }, true);
+
+  positionMenu(menu, event);
+}
+
+function showEdgeContextMenu(edgeId, event) {
+  const edge = edgesDataSet ? edgesDataSet.get(edgeId) : null;
+  if (!edge) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+
+  const title = document.createElement('div');
+  title.style.cssText = 'padding:6px 16px;font-size:11px;color:#999;border-bottom:1px solid #eee;';
+  title.textContent = (edge.axiomId ? 'User axiom: ' : 'Edge: ') + (edge.label || '');
+  menu.appendChild(title);
+
+  if (edge.axiomId) {
+    addMenuItem(menu, '❌ Delete Edge', function() { deleteAxiomEdge(edge.axiomId, edgeId); removeContextMenu(); }, true);
+  } else {
+    addMenuItem(menu, '⛔ Cannot delete DB-derived edge', function() { removeContextMenu(); });
+  }
+
+  positionMenu(menu, event);
+}
+
+function addMenuItem(menu, label, onClick, isDanger) {
+  const item = document.createElement('div');
+  item.className = 'context-menu-item' + (isDanger ? ' danger' : '');
+  item.textContent = label;
+  item.onclick = onClick;
+  menu.appendChild(item);
+}
+
+function positionMenu(menu, event) {
+  menu.style.left = event.clientX + 'px';
+  menu.style.top = event.clientY + 'px';
+  document.body.appendChild(menu);
+
+  // Close on click outside
+  setTimeout(function() {
+    document.addEventListener('click', function closeMenu() {
+      removeContextMenu();
+      document.removeEventListener('click', closeMenu);
+    });
+  }, 0);
+}
+
+function removeContextMenu() {
+  const existing = document.querySelector('.context-menu');
+  if (existing) existing.remove();
+}
+
+// --- Node/Edge Actions ---
+
+function addSubclass(parentNodeId) {
+  const childName = prompt('Enter name for the new subclass of "' + parentNodeId + '":');
+  if (!childName || !childName.trim()) return;
+  const name = childName.trim();
+
+  // Add node to graph
+  const group = 'class';
+  nodesDataSet.add({
+    id: name,
+    label: name,
+    title: 'class: ' + name,
+    group: group,
+    shape: nodeShape(group),
+    color: nodeColor(group)
+  });
+
+  // Add subclass edge as axiom
+  const id = generateId();
+  axiomConfig.subClassOf.push({ child: name, parent: parentNodeId, id: id });
+  edgesDataSet.add({
+    from: name,
+    to: parentNodeId,
+    label: 'subClassOf',
+    arrows: 'to',
+    font: { size: 11, color: '#ff9800' },
+    color: { color: '#ff9800', highlight: '#333' },
+    dashes: true,
+    axiomId: id,
+    width: 2
+  });
+
+  network.fit({ animation: { duration: 300 } });
+}
+
+function deleteClass(nodeId) {
+  if (!confirm('Remove "' + nodeId + '" from the view? (This only hides it in the editor)')) return;
+  // Remove associated axiom edges
+  const toRemove = [];
+  edgesDataSet.forEach(function(edge) {
+    if (edge.axiomId && (edge.from === nodeId || edge.to === nodeId)) {
+      toRemove.push(edge.id);
+      axiomConfig.subClassOf = axiomConfig.subClassOf.filter(a => a.id !== edge.axiomId);
+    }
+  });
+  toRemove.forEach(function(id) { edgesDataSet.remove(id); });
+  nodesDataSet.remove(nodeId);
+}
+
+function deleteAxiomEdge(axiomId, edgeId) {
+  edgesDataSet.remove(edgeId);
+  axiomConfig.subClassOf = axiomConfig.subClassOf.filter(a => a.id !== axiomId);
+  appliedAxiomIds.delete(axiomId);
+}
+
+// --- Apply ---
+
+async function applyConfig() {
+  if (!currentEditableConfig || !currentTenantId) return;
+
+  // Save layout
+  if (network) {
+    const positions = network.getPositions();
+    for (const [id, pos] of Object.entries(positions)) {
+      axiomConfig.layout[id] = { x: pos.x, y: pos.y };
+    }
+  }
+
+  try {
+    // 1. Save axiom_config to DB
+    await saveAxiomConfig();
+
+    // 2. Apply naming config (existing behavior)
+    const config = collectConfig();
+    const response = await fetchJSON('/api/v1/tenants/' + encodeURIComponent(currentTenantId) + '/mapping-assistant/config', {
+      method: 'PUT',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      body: JSON.stringify(config)
+    });
+
+    // 3. Reload axiom_config to update appliedAxiomIds
+    await loadAxiomConfig(currentTenantId);
+
+    // 4. Refresh graph
+    currentEditableConfig = response.editableConfig;
+    renderSchemaTree(currentEditableConfig);
+    renderSuggestionsPanel(response);
+    if (typeof loadGraph === 'function') {
+      await loadGraph(currentTenantId);
+    }
+
+    showToast('Applied successfully');
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
+}
+
+document.getElementById('apply-button').addEventListener('click', applyConfig);
+
+// --- Generate from DB (clear) ---
+
+async function generateFromDb() {
+  if (!currentTenantId) return;
+  if (!confirm('Generate from DB will clear all custom axioms and edits. Continue?')) return;
+
+  try {
+    // Clear local state
+    axiomConfig = { subClassOf: [], layout: {} };
+    appliedAxiomIds = new Set();
+
+    // Clear on server
+    await fetchJSON('/api/v1/tenants/' + encodeURIComponent(currentTenantId) + '/axiom-config', {
+      method: 'PUT',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      body: JSON.stringify(axiomConfig)
+    });
+
+    // Generate fresh content
+    await loadDraft(currentTenantId);
+    if (typeof loadGraph === 'function') {
+      await loadGraph(currentTenantId);
+    }
+    showToast('Generated from DB - custom axioms cleared');
+  } catch (e) {
+    showToast('Error: ' + e.message);
+  }
+}
+
+// --- Copy existing functions from original editor.js ---
+
 function renderSchemaTree(config) {
   const leftPanel = document.getElementById('left-panel');
   if (!config || !config.tables || config.tables.length === 0) {
@@ -50,7 +541,7 @@ function renderSchemaTree(config) {
   let html = '<div class="panel-header">Schema Tree</div>';
   html += '<div class="action-bar">';
   html += '<button class="primary" onclick="applyConfig()">Apply</button>';
-  html += '<button onclick="loadDraft(currentTenantId)">Reset</button>';
+  html += '<button onclick="generateFromDb()">Generate from DB</button>';
   html += '</div>';
   config.tables.forEach(function(table, ti) {
     var collapsed = table.collapsed;
@@ -84,9 +575,7 @@ function escapeHtml(str) {
 
 function toggleTable(index) {
   var el = document.getElementById('table-columns-' + index);
-  if (el) {
-    el.style.display = el.style.display === 'none' ? '' : 'none';
-  }
+  if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
 }
 
 function updateTableClassName(ti, value) {
@@ -134,21 +623,12 @@ function simpleMarkdown(text) {
       else { html += '<pre><code>'; inCode = true; }
       return;
     }
-    if (inCode) {
-      html += escapeHtml(line) + '\n';
-      return;
-    }
-    if (line.trim().startsWith('### ')) {
-      html += '<h4 style="margin:8px 0 4px;">' + escapeHtml(line.substr(4)) + '</h4>';
-    } else if (line.trim().startsWith('## ')) {
-      html += '<h4 style="margin:8px 0 4px;color:#1976d2;">' + escapeHtml(line.substr(3)) + '</h4>';
-    } else if (line.trim().startsWith('- ')) {
-      html += '<li style="margin:2px 0;">' + escapeHtml(line.substr(2)) + '</li>';
-    } else if (line.trim() === '') {
-      html += '<br>';
-    } else {
-      html += '<p style="margin:2px 0;">' + escapeHtml(line) + '</p>';
-    }
+    if (inCode) { html += escapeHtml(line) + '\n'; return; }
+    if (line.trim().startsWith('### ')) html += '<h4 style="margin:8px 0 4px;">' + escapeHtml(line.substr(4)) + '</h4>';
+    else if (line.trim().startsWith('## ')) html += '<h4 style="margin:8px 0 4px;color:#1976d2;">' + escapeHtml(line.substr(3)) + '</h4>';
+    else if (line.trim().startsWith('- ')) html += '<li style="margin:2px 0;">' + escapeHtml(line.substr(2)) + '</li>';
+    else if (line.trim() === '') html += '<br>';
+    else html += '<p style="margin:2px 0;">' + escapeHtml(line) + '</p>';
   });
   if (inCode) html += '</code></pre>';
   return html;
@@ -188,27 +668,6 @@ async function loadDraftFile(type, preEl) {
   }
 }
 
-async function applyConfig() {
-  if (!currentEditableConfig || !currentTenantId) return;
-  var config = collectConfig();
-  try {
-    var response = await fetchJSON('/api/v1/tenants/' + encodeURIComponent(currentTenantId) + '/mapping-assistant/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(config)
-    });
-    currentEditableConfig = response.editableConfig;
-    renderSchemaTree(currentEditableConfig);
-    renderSuggestionsPanel(response);
-    if (typeof loadGraph === 'function') {
-      loadGraph(currentTenantId);
-    }
-    showToast('Config applied and OWL/OBDA regenerated');
-  } catch (e) {
-    showToast('Error: ' + e.message);
-  }
-}
-
 function collectConfig() {
   if (!currentEditableConfig) return { tables: [], relationships: [] };
   var tables = currentEditableConfig.tables.map(function(table) {
@@ -218,31 +677,14 @@ function collectConfig() {
       iriTemplate: table.iriTemplate,
       expose: table.expose !== false,
       columns: table.columns.map(function(col) {
-        return {
-          columnName: col.columnName,
-          propertyName: col.propertyName,
-          expose: col.expose !== false
-        };
+        return { columnName: col.columnName, propertyName: col.propertyName, expose: col.expose !== false };
       })
     };
   });
   return { tables: tables, relationships: currentEditableConfig.relationships || [] };
 }
 
-function setupGraphClickHandler(network) {
-  network.on('click', function(params) {
-    if (params.nodes.length === 0) return;
-    var nodeId = params.nodes[0];
-    var node = nodesDataSet ? nodesDataSet.get(nodeId) : null;
-    if (!node) return;
-    var group = node.group || 'property';
-    if (group === 'class') {
-      editClassNode(nodeId);
-    } else {
-      editPropertyNode(nodeId);
-    }
-  });
-}
+function setupGraphClickHandler(network) {}
 
 function editClassNode(nodeId) {
   if (!currentEditableConfig) return;
@@ -286,9 +728,7 @@ function editPropertyNode(nodeId) {
 function findTableByClassName(className) {
   if (!currentEditableConfig) return null;
   for (var i = 0; i < currentEditableConfig.tables.length; i++) {
-    if (currentEditableConfig.tables[i].className === className) {
-      return currentEditableConfig.tables[i];
-    }
+    if (currentEditableConfig.tables[i].className === className) return currentEditableConfig.tables[i];
   }
   return null;
 }
@@ -298,9 +738,7 @@ function findPropertyByNodeId(nodeId) {
   for (var i = 0; i < currentEditableConfig.tables.length; i++) {
     var table = currentEditableConfig.tables[i];
     for (var j = 0; j < table.columns.length; j++) {
-      if (table.columns[j].propertyName === nodeId) {
-        return { table: table, col: table.columns[j] };
-      }
+      if (table.columns[j].propertyName === nodeId) return { table: table, col: table.columns[j] };
     }
   }
   return null;
@@ -341,4 +779,8 @@ function showToast(message) {
   toast.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:6px;font-size:14px;z-index:200;box-shadow:0 2px 10px rgba(0,0,0,0.2);';
   document.body.appendChild(toast);
   setTimeout(function() { toast.remove(); }, 3000);
+}
+
+function generateId() {
+  return 'ax-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 }

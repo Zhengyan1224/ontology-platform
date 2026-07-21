@@ -40,3 +40,28 @@
 .edit-panel input[type="text"] { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
 .edit-panel .edit-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
 .edit-panel .edit-actions button { padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+
+/* Edit mode */
+.mode-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #aaa; }
+.mode-toggle label { cursor: pointer; padding: 4px 10px; border-radius: 4px; border: 1px solid #444; transition: all 0.2s; color: #aaa; }
+.mode-toggle label.active { background: #2868d8; color: #fff; border-color: #2868d8; }
+.mode-toggle label:hover { border-color: #777; }
+
+/* Context menu */
+.context-menu { position: fixed; background: #fff; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); z-index: 200; min-width: 180px; padding: 4px 0; }
+.context-menu-item { padding: 8px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.context-menu-item:hover { background: #f0f4f8; }
+.context-menu-item.danger { color: #c62828; }
+.context-menu-divider { height: 1px; background: #eee; margin: 4px 0; }
+
+/* Edge creation dialog */
+.edge-dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 100; display: flex; align-items: center; justify-content: center; }
+.edge-dialog { background: #fff; border-radius: 8px; padding: 24px; min-width: 360px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
+.edge-dialog h3 { margin: 0 0 16px; font-size: 16px; }
+.edge-dialog .edge-type-option { display: flex; align-items: center; gap: 8px; padding: 8px 0; }
+.edge-dialog .edge-type-option label { font-size: 14px; cursor: pointer; }
+.edge-dialog .edge-type-option input[type="radio"] { cursor: pointer; }
+.edge-dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+.edge-dialog-actions button { padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; border: 1px solid #ccc; background: #fff; }
+.edge-dialog-actions button.primary { background: #1976d2; color: #fff; border-color: #1565c0; }
+.edge-dialog-actions button.primary:hover { background: #1565c0; }

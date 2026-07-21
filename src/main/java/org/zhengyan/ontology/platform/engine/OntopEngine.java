@@ -55,18 +55,32 @@ public class OntopEngine implements OntologyEngine {
         log.info("Initializing Ontop engine for tenant [{}]: owl={}, obda={}",
                 tenant.getId(), owlPath, obdaPath);
 
-        config = OntopSQLOWLAPIConfiguration.defaultBuilder()
-                .ontologyFile(owlPath)
-                .nativeOntopMappingFile(obdaPath)
-                .propertyFile(new File(propPath).toURI().toString())
-                .enableTestMode()
-                .build();
+        File owlFile = new File(owlPath);
+        if (!owlFile.exists()) {
+            log.warn("OWL file does not exist for tenant [{}]: {}", tenant.getId(), owlFile.getAbsolutePath());
+        }
+        File obdaFile = new File(obdaPath);
+        if (!obdaFile.exists()) {
+            log.warn("OBDA file does not exist for tenant [{}]: {}", tenant.getId(), obdaFile.getAbsolutePath());
+        }
 
-        repo = OntopRepository.defaultRepository(config);
-        repo.init();
+        try {
+            config = OntopSQLOWLAPIConfiguration.defaultBuilder()
+                    .ontologyFile(owlPath)
+                    .nativeOntopMappingFile(obdaPath)
+                    .propertyFile(new File(propPath).toURI().toString())
+                    .enableTestMode()
+                    .build();
 
-        initialized.set(true);
-        log.info("Ontop engine initialized successfully for tenant [{}]", tenant.getId());
+            repo = OntopRepository.defaultRepository(config);
+            repo.init();
+
+            initialized.set(true);
+            log.info("Ontop engine initialized successfully for tenant [{}]", tenant.getId());
+        } catch (Exception e) {
+            log.error("Ontop initialization failed for tenant [{}]: {}", tenant.getId(), e.getMessage(), e);
+            throw e;
+        }
     }
 
     @Override

@@ -13,20 +13,9 @@ public class SqlExecutionService {
 
     private static final Logger log = LoggerFactory.getLogger(SqlExecutionService.class);
 
-    private static final Set<String> BLOCKED_STATEMENTS = Set.of(
-            "DROP ", "TRUNCATE ", "ALTER ", "CREATE ", "GRANT ", "REVOKE ");
-
     public SqlResult execute(Tenant tenant, String sql) {
         String trimmed = sql.trim();
         String upper = trimmed.toUpperCase();
-
-        for (String blocked : BLOCKED_STATEMENTS) {
-            if (upper.startsWith(blocked)) {
-                return new SqlResult(false, List.of(),
-                        "Blocked: " + blocked.trim() + " statements are not allowed", 0, 0, List.of());
-            }
-        }
-
         long start = System.currentTimeMillis();
         boolean isQuery = upper.startsWith("SELECT") || upper.startsWith("WITH")
                 || upper.startsWith("EXPLAIN") || upper.startsWith("SHOW")

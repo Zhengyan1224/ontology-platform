@@ -29,7 +29,12 @@ header select { min-width: 140px; }
   <h1>Ontology Editor</h1>
   <label for="api-key-input">API Key:</label>
   <input id="api-key-input" type="password" placeholder="X-API-Key" autocomplete="off">
+  <div class="mode-toggle" id="mode-toggle">
+    <label id="mode-view" class="active">View</label>
+    <label id="mode-edit">Edit</label>
+  </div>
   <button id="reload-button" type="button">Refresh</button>
+  <button id="apply-button" type="button" style="display:none;background:#1976d2;color:#fff;border-color:#1565c0;">Apply</button>
   <label for="tenant-select">Tenant:</label>
   <select id="tenant-select"></select>
   <label for="search-input">Search:</label>
