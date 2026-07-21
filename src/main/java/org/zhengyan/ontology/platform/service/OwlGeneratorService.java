@@ -154,12 +154,20 @@ public class OwlGeneratorService {
                     String child = entry.has("child") ? entry.get("child").asText() : null;
                     String parent = entry.has("parent") ? entry.get("parent").asText() : null;
                     if (child != null && parent != null) {
-                        sw.append(":").append(child).append(" rdfs:subClassOf :").append(parent).append(" .\n");
+                        sw.append(formatIri(child)).append(" rdfs:subClassOf ").append(formatIri(parent)).append(" .\n");
                     }
                 }
             }
         } catch (Exception e) {
             log.warn("Failed to append user axioms for tenant [{}]: {}", tenantId, e.getMessage());
         }
+    }
+
+    private String formatIri(String value) {
+        if (value == null || value.isBlank()) return value;
+        if (value.startsWith("http://") || value.startsWith("https://")) {
+            return "<" + value + ">";
+        }
+        return ":" + value;
     }
 }

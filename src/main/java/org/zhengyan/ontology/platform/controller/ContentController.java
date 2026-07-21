@@ -11,6 +11,7 @@ import org.zhengyan.ontology.platform.engine.EngineRegistry;
 import org.zhengyan.ontology.platform.model.Tenant;
 import org.zhengyan.ontology.platform.repository.TenantContentRepository;
 import org.zhengyan.ontology.platform.service.CachedSparqlService;
+import org.zhengyan.ontology.platform.service.GraphLlmService;
 import org.zhengyan.ontology.platform.service.ObdaGeneratorService;
 import org.zhengyan.ontology.platform.service.OntologyGraphService;
 import org.zhengyan.ontology.platform.service.OwlGeneratorService;
@@ -46,6 +47,7 @@ public class ContentController {
     private final CachedSparqlService cachedSparqlService;
     private final SqlExecutionService sqlExecutionService;
     private final OntologyGraphService ontologyGraphService;
+    private final GraphLlmService graphLlmService;
 
     public ContentController(TenantConfig tenantConfig,
                              OwlGeneratorService owlGeneratorService,
@@ -55,7 +57,8 @@ public class ContentController {
                              EngineRegistry engineRegistry,
                              CachedSparqlService cachedSparqlService,
                              SqlExecutionService sqlExecutionService,
-                             OntologyGraphService ontologyGraphService) {
+                             OntologyGraphService ontologyGraphService,
+                             GraphLlmService graphLlmService) {
         this.tenantConfig = tenantConfig;
         this.owlGeneratorService = owlGeneratorService;
         this.obdaGeneratorService = obdaGeneratorService;
@@ -65,6 +68,7 @@ public class ContentController {
         this.cachedSparqlService = cachedSparqlService;
         this.sqlExecutionService = sqlExecutionService;
         this.ontologyGraphService = ontologyGraphService;
+        this.graphLlmService = graphLlmService;
     }
 
     @PostMapping("/tenants/{tenantId}/generate")
@@ -144,6 +148,32 @@ public class ContentController {
         }
     }
 
+    @PostMapping("/tenants/{tenantId}/axiom-config/suggest")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> suggestAxioms(@PathVariable String tenantId) {
+        Tenant tenant = findTenant(tenantId);
+        if (tenant == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of(KEY_ERROR, TENANT_NOT_FOUND, KEY_MESSAGE, "Tenant not found: " + tenantId));
+        }
+        try {
+            TenantContentRepository.TenantContent content = tenantContentRepository.findByTenantId(tenantId);
+            String config = content != null ? content.axiomConfig() : null;
+            Map<String, Object> axiomConfig = new LinkedHashMap<>();
+            if (config != null) {
+                try {
+                    JsonNode node = new ObjectMapper().readTree(config);
+                    axiomConfig = new ObjectMapper().convertValue(node, Map.class);
+                } catch (Exception ignored) {}
+            }
+            Map<String, Object> result = graphLlmService.suggestAxioms(tenantId, axiomConfig);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(KEY_ERROR, "SUGGESTION_FAILED", KEY_MESSAGE, e.getMessage()));
+        }
+    }
+
     private String validateAxiomConfig(Map<String, Object> body) {
         if (body == null) return "body is required";
         Object subClassOf = body.get("subClassOf");
@@ -182,8 +212,7 @@ public class ContentController {
 
             Tenant updated = tenantPersistenceService.findById(tenantId);
             if (updated != null) {
-                engineRegistry.remove(tenantId);
-                engineRegistry.getOrCreate(updated);
+                engineRegistry.updateEngine(tenantId, updated);
             }
             cachedSparqlService.evictForTenant(tenantId);
             ontologyGraphService.evictCache(tenantId);

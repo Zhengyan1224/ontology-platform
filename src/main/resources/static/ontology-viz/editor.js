@@ -40,6 +40,7 @@ function setMode(edit) {
   document.getElementById('mode-view').className = edit ? '' : 'active';
   document.getElementById('mode-edit').className = edit ? 'active' : '';
   document.getElementById('apply-button').style.display = edit ? '' : 'none';
+  document.getElementById('ai-suggest-btn').style.display = edit ? '' : 'none';
 
   if (!network) return;
   if (isEditMode) {
@@ -124,8 +125,8 @@ function renderGraph(data) {
   (data.nodes || []).forEach(n => addNode(n, 'property'));
 
   (data.edges || []).forEach(e => {
-    if (e.source && !nodeIds.has(e.source)) addNode({ id: e.source, label: e.source, type: 'property' });
-    if (e.target && !nodeIds.has(e.target)) addNode({ id: e.target, label: e.target, type: e.propertyType === 'datatype' ? 'datatype' : 'property' });
+    if (e.source && !nodeIds.has(e.source)) addNode({ id: e.source, label: extractLocalName(e.source) || e.source, type: 'property' });
+    if (e.target && !nodeIds.has(e.target)) addNode({ id: e.target, label: extractLocalName(e.target) || e.target, type: e.propertyType === 'datatype' ? 'datatype' : 'property' });
   });
 
   // Add user axiom edges (dashed)
@@ -457,6 +458,117 @@ function deleteAxiomEdge(axiomId, edgeId) {
   appliedAxiomIds.delete(axiomId);
 }
 
+// --- AI Suggest ---
+
+document.getElementById('ai-suggest-btn').addEventListener('click', suggestAxioms);
+
+async function suggestAxioms() {
+  if (!currentTenantId) return;
+  removeContextMenu();
+  removeSuggestDialog();
+
+  var overlay = document.createElement('div');
+  overlay.className = 'edge-dialog-overlay';
+  overlay.id = 'suggest-overlay';
+  var panel = document.createElement('div');
+  panel.className = 'edge-dialog';
+  panel.style.maxWidth = '500px';
+  panel.style.width = '90%';
+  panel.innerHTML = '<h3>AI 建议</h3>';
+  panel.innerHTML += '<p style="font-size:14px;color:#666;text-align:center;padding:20px 0;">正在获取建议...</p>';
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  try {
+    var data = await fetchJSON('/api/v1/tenants/' + encodeURIComponent(currentTenantId) + '/axiom-config/suggest', {
+      headers: Object.assign({}, authHeaders())
+    });
+
+    if (data.error) {
+      panel.innerHTML = '<h3>AI 建议</h3>';
+      panel.innerHTML += '<p style="font-size:14px;color:#c62828;padding:12px;">' + escapeHtml(data.error) + '</p>';
+      panel.innerHTML += '<div class="edge-dialog-actions"><button onclick="removeSuggestDialog()">关闭</button></div>';
+      return;
+    }
+
+    var suggestions = data.suggestions || [];
+    if (suggestions.length === 0) {
+      panel.innerHTML = '<h3>AI 建议</h3>';
+      panel.innerHTML += '<p style="font-size:14px;color:#666;padding:12px;text-align:center;">暂无建议</p>';
+      panel.innerHTML += '<div class="edge-dialog-actions"><button onclick="removeSuggestDialog()">关闭</button></div>';
+      return;
+    }
+
+    var html = '<h3>AI 建议的子类关系</h3>';
+    html += '<p style="font-size:12px;color:#999;margin-bottom:12px;">点击"接受"将建议添加到图中（虚线），点击"忽略"跳过。</p>';
+    html += '<div style="max-height:400px;overflow-y:auto;">';
+    for (var i = 0; i < suggestions.length; i++) {
+      var s = suggestions[i];
+      html += '<div class="suggest-item" data-index="' + i + '" style="border:1px solid #e0e0e0;border-radius:6px;padding:10px;margin-bottom:8px;background:#fafafa;">';
+      html += '<div style="font-size:14px;font-weight:500;margin-bottom:4px;">';
+      html += '<strong>' + escapeHtml(s.child) + '</strong> → <strong>' + escapeHtml(s.parent) + '</strong>';
+      html += '</div>';
+      html += '<div style="font-size:12px;color:#666;margin-bottom:8px;">' + escapeHtml(s.reason || '') + '</div>';
+      html += '<div style="display:flex;gap:6px;">';
+      html += '<button class="primary" style="font-size:12px;padding:4px 12px;" onclick="acceptSuggestion(' + i + ', \'' + escapeHtml(s.child) + '\', \'' + escapeHtml(s.parent) + '\')">接受</button>';
+      html += '<button style="font-size:12px;padding:4px 12px;" onclick="dismissSuggestion(this)">忽略</button>';
+      html += '</div></div>';
+    }
+    html += '</div>';
+    html += '<div class="edge-dialog-actions"><button onclick="removeSuggestDialog()">关闭</button></div>';
+    panel.innerHTML = html;
+  } catch (e) {
+    panel.innerHTML = '<h3>AI 建议</h3>';
+    panel.innerHTML += '<p style="font-size:14px;color:#c62828;padding:12px;">请求失败：' + escapeHtml(e.message) + '</p>';
+    panel.innerHTML += '<div class="edge-dialog-actions"><button onclick="removeSuggestDialog()">关闭</button></div>';
+  }
+}
+
+function acceptSuggestion(index, child, parent) {
+  var id = generateId();
+  axiomConfig.subClassOf.push({ child: child, parent: parent, id: id });
+  if (edgesDataSet && nodesDataSet) {
+    // Ensure nodes exist
+    if (!nodesDataSet.get(child)) {
+      nodesDataSet.add({ id: child, label: child, title: 'class: ' + child, group: 'class', shape: 'ellipse', color: { background: '#e3f2fd', border: '#1976d2' } });
+    }
+    if (!nodesDataSet.get(parent)) {
+      nodesDataSet.add({ id: parent, label: parent, title: 'class: ' + parent, group: 'class', shape: 'ellipse', color: { background: '#e3f2fd', border: '#1976d2' } });
+    }
+    edgesDataSet.add({
+      from: child,
+      to: parent,
+      label: 'subClassOf',
+      arrows: 'to',
+      font: { size: 11, color: '#ff9800' },
+      color: { color: '#ff9800', highlight: '#333' },
+      dashes: true,
+      axiomId: id,
+      width: 2
+    });
+  }
+  // Mark as accepted
+  var item = document.querySelector('.suggest-item[data-index="' + index + '"]');
+  if (item) {
+    item.style.opacity = '0.5';
+    item.style.pointerEvents = 'none';
+    var btn = item.querySelector('button.primary');
+    if (btn) btn.textContent = '已接受';
+  }
+}
+
+function dismissSuggestion(btn) {
+  var item = btn.closest('.suggest-item');
+  if (item) {
+    item.style.display = 'none';
+  }
+}
+
+function removeSuggestDialog() {
+  var existing = document.getElementById('suggest-overlay');
+  if (existing) existing.remove();
+}
+
 // --- Apply ---
 
 async function applyConfig() {
@@ -725,20 +837,40 @@ function editPropertyNode(nodeId) {
   });
 }
 
-function findTableByClassName(className) {
+function findTableByClassName(nodeId) {
   if (!currentEditableConfig) return null;
+  // Try direct match first (for backward compat with local-name IDs)
   for (var i = 0; i < currentEditableConfig.tables.length; i++) {
-    if (currentEditableConfig.tables[i].className === className) return currentEditableConfig.tables[i];
+    if (currentEditableConfig.tables[i].className === nodeId) return currentEditableConfig.tables[i];
+  }
+  // If node ID is an IRI, try matching by local name
+  var localName = extractLocalName(nodeId);
+  if (localName && localName !== nodeId) {
+    for (var i = 0; i < currentEditableConfig.tables.length; i++) {
+      if (currentEditableConfig.tables[i].className === localName) return currentEditableConfig.tables[i];
+    }
   }
   return null;
 }
 
+function extractLocalName(iri) {
+  if (!iri || typeof iri !== 'string') return iri;
+  var hash = iri.lastIndexOf('#');
+  if (hash >= 0) return iri.substring(hash + 1);
+  var slash = iri.lastIndexOf('/');
+  if (slash >= 0) return iri.substring(slash + 1);
+  return iri;
+}
+
 function findPropertyByNodeId(nodeId) {
   if (!currentEditableConfig) return null;
+  var candidates = [nodeId];
+  var localName = extractLocalName(nodeId);
+  if (localName && localName !== nodeId) candidates.push(localName);
   for (var i = 0; i < currentEditableConfig.tables.length; i++) {
     var table = currentEditableConfig.tables[i];
     for (var j = 0; j < table.columns.length; j++) {
-      if (table.columns[j].propertyName === nodeId) return { table: table, col: table.columns[j] };
+      if (candidates.indexOf(table.columns[j].propertyName) >= 0) return { table: table, col: table.columns[j] };
     }
   }
   return null;

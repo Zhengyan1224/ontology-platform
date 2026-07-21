@@ -55,16 +55,17 @@ public class OntologyGraphService {
         Set<String> nodeIds = new LinkedHashSet<>();
 
         for (Map<String, Object> cls : owlSchema.classes) {
+            String iri = (String) cls.get("iri");
             String name = (String) cls.get("name");
-            addNode(nodes, nodeIds, name, name, TYPE_CLASS);
+            addNode(nodes, nodeIds, iri, name, TYPE_CLASS);
         }
 
         for (Map<String, Object> rel : owlSchema.classHierarchy) {
-            String child = toLocalName((String) rel.get("child"));
-            String parent = toLocalName((String) rel.get("parent"));
+            String child = (String) rel.get("child");
+            String parent = (String) rel.get("parent");
 
-            for (String name : List.of(child, parent)) {
-                addNode(nodes, nodeIds, name, name, TYPE_CLASS);
+            for (String iri : List.of(child, parent)) {
+                addNode(nodes, nodeIds, iri, toLocalName(iri), TYPE_CLASS);
             }
 
             addEdge(edges, child, parent, "subClassOf", "hierarchy", null);
@@ -73,31 +74,31 @@ public class OntologyGraphService {
         for (Map<String, Object> prop : owlSchema.properties) {
             String propName = (String) prop.get("name");
             String propType = (String) prop.get("type");
-            String domain = toLocalName((String) prop.get("domain"));
-            String range = toLocalName((String) prop.get("range"));
+            String domainIri = (String) prop.get("domain");
+            String rangeIri = (String) prop.get("range");
 
-            if ("object".equals(propType) && domain != null && range != null) {
-                addNode(nodes, nodeIds, domain, domain, TYPE_CLASS);
-                addNode(nodes, nodeIds, range, range, TYPE_CLASS);
-                addEdge(edges, domain, range, propName, "objectProperty", propType);
-            } else if ("datatype".equals(propType) && domain != null && range != null) {
-                String datatypeId = "xsd:" + range;
-                addNode(nodes, nodeIds, domain, domain, TYPE_CLASS);
-                addNode(nodes, nodeIds, datatypeId, datatypeId, TYPE_DATATYPE);
-                addEdge(edges, domain, datatypeId, propName, "datatypeProperty", propType);
+            if ("object".equals(propType) && domainIri != null && rangeIri != null) {
+                addNode(nodes, nodeIds, domainIri, toLocalName(domainIri), TYPE_CLASS);
+                addNode(nodes, nodeIds, rangeIri, toLocalName(rangeIri), TYPE_CLASS);
+                addEdge(edges, domainIri, rangeIri, propName, "objectProperty", propType);
+            } else if ("datatype".equals(propType) && domainIri != null && rangeIri != null) {
+                addNode(nodes, nodeIds, domainIri, toLocalName(domainIri), TYPE_CLASS);
+                addNode(nodes, nodeIds, rangeIri, toLocalName(rangeIri), TYPE_DATATYPE);
+                addEdge(edges, domainIri, rangeIri, propName, "datatypeProperty", propType);
             } else {
+                String propertyIri = (String) prop.get("iri");
                 String propertyTypeNode = "object".equals(propType) ? "ObjectProperty" : "DatatypeProperty";
-                addNode(nodes, nodeIds, propName, propName, TYPE_PROPERTY);
+                addNode(nodes, nodeIds, propertyIri, propName, TYPE_PROPERTY);
                 addNode(nodes, nodeIds, propertyTypeNode, propertyTypeNode, TYPE_DATATYPE);
-                addEdge(edges, propName, propertyTypeNode, propName, TYPE_PROPERTY, propType);
+                addEdge(edges, propertyIri, propertyTypeNode, propName, TYPE_PROPERTY, propType);
             }
         }
 
         for (Map<String, Object> rel : owlSchema.subPropertyOf) {
-            String child = toLocalName((String) rel.get("child"));
-            String parent = toLocalName((String) rel.get("parent"));
-            addNode(nodes, nodeIds, child, child, TYPE_PROPERTY);
-            addNode(nodes, nodeIds, parent, parent, TYPE_PROPERTY);
+            String child = (String) rel.get("child");
+            String parent = (String) rel.get("parent");
+            addNode(nodes, nodeIds, child, toLocalName(child), TYPE_PROPERTY);
+            addNode(nodes, nodeIds, parent, toLocalName(parent), TYPE_PROPERTY);
             addEdge(edges, child, parent, "subPropertyOf", "subProperty", null);
         }
 
@@ -120,6 +121,7 @@ public class OntologyGraphService {
         Map<String, Object> node = new LinkedHashMap<>();
         node.put("id", id);
         node.put(LABEL, label != null ? label : id);
+        node.put("name", label != null ? label : id);
         node.put("type", type);
         nodes.add(node);
         nodeIds.add(id);

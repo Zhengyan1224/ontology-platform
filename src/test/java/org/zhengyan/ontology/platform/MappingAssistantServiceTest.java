@@ -1,9 +1,11 @@
 package org.zhengyan.ontology.platform;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.zhengyan.ontology.platform.config.OwlGenerationProperties;
 import org.zhengyan.ontology.platform.config.TenantConfig;
 import org.zhengyan.ontology.platform.model.Tenant;
+import org.zhengyan.ontology.platform.repository.TenantContentRepository;
 import org.zhengyan.ontology.platform.service.JdbcMetadataReader;
 import org.zhengyan.ontology.platform.service.MappingAssistantService;
 import org.zhengyan.ontology.platform.service.ObdaGeneratorService;
@@ -21,6 +23,13 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 public class MappingAssistantServiceTest {
+
+    private TenantContentRepository contentRepo;
+
+    @BeforeEach
+    void setUp() {
+        contentRepo = mock(TenantContentRepository.class);
+    }
 
     @Test
     void createsRuleBasedDraftWithoutApplyingChanges() throws Exception {
@@ -44,7 +53,7 @@ public class MappingAssistantServiceTest {
         MappingAssistantService service = new MappingAssistantService(
                 tenantConfig,
                 tenantPersistenceService,
-                new OwlGeneratorService(properties, metadataReader),
+                new OwlGeneratorService(properties, metadataReader, contentRepo),
                 new ObdaGeneratorService(properties, metadataReader),
                 metadataReader,
                 properties,
@@ -102,7 +111,7 @@ public class MappingAssistantServiceTest {
         MappingAssistantService service = new MappingAssistantService(
                 tenantConfig,
                 tenantPersistenceService,
-                new OwlGeneratorService(properties, metadataReader),
+                new OwlGeneratorService(properties, metadataReader, contentRepo),
                 new ObdaGeneratorService(properties, metadataReader),
                 metadataReader,
                 properties,

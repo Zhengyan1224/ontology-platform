@@ -180,11 +180,11 @@ public class AdminController {
         }
 
         tenantPersistenceService.update(existing);
-        engineRegistry.remove(tenantId);
         try {
-            engineRegistry.getOrCreate(existing);
+            engineRegistry.updateEngine(tenantId, existing);
         } catch (Exception e) {
             log.warn("Engine reinitialization deferred for tenant [{}] after update: {}", tenantId, e.getMessage());
+            engineRegistry.remove(tenantId);
         }
 
         Map<String, Object> result = new LinkedHashMap<>();

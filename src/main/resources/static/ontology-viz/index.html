@@ -35,6 +35,7 @@ header select { min-width: 140px; }
   </div>
   <button id="reload-button" type="button">Refresh</button>
   <button id="apply-button" type="button" style="display:none;background:#1976d2;color:#fff;border-color:#1565c0;">Apply</button>
+  <button id="ai-suggest-btn" type="button" style="display:none;background:#7b1fa2;color:#fff;border-color:#6a1b9a;">AI Suggest</button>
   <label for="tenant-select">Tenant:</label>
   <select id="tenant-select"></select>
   <label for="search-input">Search:</label>
@@ -152,12 +153,20 @@ function renderGraph(data) {
 
   (data.nodes || []).forEach(n => addNode(n, 'property'));
 
+  function extractLocalName(iri) {
+    if (!iri || typeof iri !== 'string') return iri;
+    var hash = iri.lastIndexOf('#');
+    if (hash >= 0) return iri.substring(hash + 1);
+    var slash = iri.lastIndexOf('/');
+    if (slash >= 0) return iri.substring(slash + 1);
+    return iri;
+  }
   (data.edges || []).forEach(e => {
     if (e.source && !nodeIds.has(e.source)) {
-      addNode({ id: e.source, label: e.source, type: 'property' });
+      addNode({ id: e.source, label: extractLocalName(e.source) || e.source, type: 'property' });
     }
     if (e.target && !nodeIds.has(e.target)) {
-      addNode({ id: e.target, label: e.target, type: e.propertyType === 'datatype' ? 'datatype' : 'property' });
+      addNode({ id: e.target, label: extractLocalName(e.target) || e.target, type: e.propertyType === 'datatype' ? 'datatype' : 'property' });
     }
   });
 

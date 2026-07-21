@@ -1,8 +1,10 @@
 package org.zhengyan.ontology.platform;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.zhengyan.ontology.platform.config.OwlGenerationProperties;
 import org.zhengyan.ontology.platform.model.Tenant;
+import org.zhengyan.ontology.platform.repository.TenantContentRepository;
 import org.zhengyan.ontology.platform.service.JdbcMetadataReader;
 import org.zhengyan.ontology.platform.service.OwlGeneratorService;
 
@@ -11,8 +13,20 @@ import java.sql.DriverManager;
 import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 public class OwlGeneratorServiceTest {
+
+    private TenantContentRepository contentRepo;
+
+    @BeforeEach
+    void setUp() {
+        contentRepo = mock(TenantContentRepository.class);
+    }
+
+    private OwlGeneratorService createService(OwlGenerationProperties props) {
+        return new OwlGeneratorService(props, new JdbcMetadataReader(), contentRepo);
+    }
 
     private String createMemDb(String suffix) {
         return "jdbc:h2:mem:testowl" + suffix + System.currentTimeMillis() + ";DB_CLOSE_DELAY=-1";
@@ -38,7 +52,7 @@ public class OwlGeneratorServiceTest {
             stmt.execute("ALTER TABLE books ADD FOREIGN KEY (author_id) REFERENCES authors(id)");
         }
 
-        OwlGeneratorService service = new OwlGeneratorService(new OwlGenerationProperties(), new JdbcMetadataReader());
+        OwlGeneratorService service = createService(new OwlGenerationProperties());
         String owl = service.generateOwl(createTenant(url));
 
         assertNotNull(owl);
@@ -59,7 +73,7 @@ public class OwlGeneratorServiceTest {
             stmt.execute("CREATE TABLE statuses (id INT PRIMARY KEY)");
         }
 
-        OwlGeneratorService service = new OwlGeneratorService(new OwlGenerationProperties(), new JdbcMetadataReader());
+        OwlGeneratorService service = createService(new OwlGenerationProperties());
         String owl = service.generateOwl(createTenant(url));
 
         assertTrue(owl.contains(":Book rdf:type owl:Class"));
@@ -77,7 +91,7 @@ public class OwlGeneratorServiceTest {
             stmt.execute("ALTER TABLE employees ADD FOREIGN KEY (department_id) REFERENCES departments(id)");
         }
 
-        OwlGeneratorService service = new OwlGeneratorService(new OwlGenerationProperties(), new JdbcMetadataReader());
+        OwlGeneratorService service = createService(new OwlGenerationProperties());
         String owl = service.generateOwl(createTenant(url));
 
         assertTrue(owl.contains(":departmentId rdf:type owl:ObjectProperty"));
@@ -93,7 +107,7 @@ public class OwlGeneratorServiceTest {
             stmt.execute("CREATE TABLE user_profiles (id INT PRIMARY KEY, full_name VARCHAR(255))");
         }
 
-        OwlGeneratorService service = new OwlGeneratorService(new OwlGenerationProperties(), new JdbcMetadataReader());
+        OwlGeneratorService service = createService(new OwlGenerationProperties());
         String owl = service.generateOwl(createTenant(url));
 
         assertTrue(owl.contains(":UserProfile rdf:type owl:Class"));
@@ -110,7 +124,7 @@ public class OwlGeneratorServiceTest {
 
         OwlGenerationProperties props = new OwlGenerationProperties();
         props.setNameCase("camelCase");
-        OwlGeneratorService service = new OwlGeneratorService(props, new JdbcMetadataReader());
+        OwlGeneratorService service = createService(props);
         String owl = service.generateOwl(createTenant(url));
 
         assertTrue(owl.contains(":bookEntry rdf:type owl:Class"));
@@ -127,7 +141,7 @@ public class OwlGeneratorServiceTest {
         OwlGenerationProperties props = new OwlGenerationProperties();
         props.setTableToClassPrefix("ex_");
         props.setColumnToPropertyPrefix("has");
-        OwlGeneratorService service = new OwlGeneratorService(props, new JdbcMetadataReader());
+        OwlGeneratorService service = createService(props);
         String owl = service.generateOwl(createTenant(url));
 
         assertTrue(owl.contains(":ExBook rdf:type owl:Class"));
@@ -142,7 +156,7 @@ public class OwlGeneratorServiceTest {
             stmt.execute("CREATE TABLE products (id INT PRIMARY KEY, sku VARCHAR(50), name VARCHAR(255))");
         }
 
-        OwlGeneratorService service = new OwlGeneratorService(new OwlGenerationProperties(), new JdbcMetadataReader());
+        OwlGeneratorService service = createService(new OwlGenerationProperties());
         String owl = service.generateOwl(createTenant(url));
 
         assertTrue(owl.contains(":id rdf:type owl:FunctionalProperty"));
@@ -154,7 +168,7 @@ public class OwlGeneratorServiceTest {
         try (Connection conn = DriverManager.getConnection(url, "sa", "")) {
         }
 
-        OwlGeneratorService service = new OwlGeneratorService(new OwlGenerationProperties(), new JdbcMetadataReader());
+        OwlGeneratorService service = createService(new OwlGenerationProperties());
         String owl = service.generateOwl(createTenant(url));
 
         assertNotNull(owl);
@@ -173,7 +187,7 @@ public class OwlGeneratorServiceTest {
             stmt.execute("CREATE TABLE species (id INT PRIMARY KEY)");
         }
 
-        OwlGeneratorService service = new OwlGeneratorService(new OwlGenerationProperties(), new JdbcMetadataReader());
+        OwlGeneratorService service = createService(new OwlGenerationProperties());
         String owl = service.generateOwl(createTenant(url));
 
         assertTrue(owl.contains(":Address rdf:type owl:Class"));
