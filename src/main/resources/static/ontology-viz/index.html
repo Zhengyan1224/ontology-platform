@@ -47,56 +47,15 @@ header select { min-width: 140px; }
   <div id="right-panel"><div class="panel-header">LLM Review</div><div style="padding:8px;color:#666;">Load a draft to see review</div></div>
 </div>
 
+<script src="editor.js"></script>
 <script>
 const API_BASE = '/api/v1';
 const API_KEY_STORAGE = 'ontology-viz-api-key';
-let network = null;
-let nodesDataSet = null;
-let edgesDataSet = null;
 let allNodeIds = [];
-
-function getApiKey() {
-  return document.getElementById('api-key-input').value.trim();
-}
-
-function authHeaders() {
-  const apiKey = getApiKey();
-  return apiKey ? { 'X-API-Key': apiKey } : {};
-}
-
-function showMessage(message) {
-  if (network) {
-    network.destroy();
-    network = null;
-  }
-  const container = document.getElementById('graph-container');
-  container.textContent = '';
-  const p = document.createElement('p');
-  p.className = 'empty-state';
-  p.textContent = message;
-  container.appendChild(p);
-}
-
-async function fetchJSON(url) {
-  const res = await fetch(url, { headers: authHeaders() });
-  if (!res.ok) {
-    let message = res.statusText || ('HTTP ' + res.status);
-    try {
-      const body = await res.json();
-      message = body.message || body.error || message;
-    } catch (ignored) {
-      // Keep the HTTP status text when the response is not JSON.
-    }
-    throw new Error(message);
-  }
-  return res.json();
-}
 
 async function loadTenants() {
   const select = document.getElementById('tenant-select');
   select.innerHTML = '';
-  nodesDataSet = null;
-  edgesDataSet = null;
 
   if (!getApiKey()) {
     showMessage('API key required');
@@ -113,8 +72,7 @@ async function loadTenants() {
     });
     if (tenants.length > 0) {
       select.value = tenants[0].id;
-      loadGraph(tenants[0].id);
-      if (typeof loadDraft === 'function') loadDraft(tenants[0].id);
+      loadDraft(tenants[0].id).then(() => loadGraph(tenants[0].id));
     } else {
       showMessage('No tenants available');
     }
@@ -132,116 +90,6 @@ async function loadGraph(tenantId) {
   }
 }
 
-function renderGraph(data) {
-  const nodeIds = new Set();
-  const nodes = [];
-
-  function addNode(n, fallbackType) {
-    const id = n.id || n.name;
-    if (!id || nodeIds.has(id)) return;
-    nodeIds.add(id);
-    const type = n.type || fallbackType || 'property';
-    nodes.push({
-      id: id,
-      label: n.label || n.name || id,
-      title: (type || '') + ': ' + (n.label || n.name || id),
-      group: type,
-      shape: nodeShape(type),
-      color: nodeColor(type)
-    });
-  }
-
-  (data.nodes || []).forEach(n => addNode(n, 'property'));
-
-  function extractLocalName(iri) {
-    if (!iri || typeof iri !== 'string') return iri;
-    var hash = iri.lastIndexOf('#');
-    if (hash >= 0) return iri.substring(hash + 1);
-    var slash = iri.lastIndexOf('/');
-    if (slash >= 0) return iri.substring(slash + 1);
-    return iri;
-  }
-  (data.edges || []).forEach(e => {
-    if (e.source && !nodeIds.has(e.source)) {
-      addNode({ id: e.source, label: extractLocalName(e.source) || e.source, type: 'property' });
-    }
-    if (e.target && !nodeIds.has(e.target)) {
-      addNode({ id: e.target, label: extractLocalName(e.target) || e.target, type: e.propertyType === 'datatype' ? 'datatype' : 'property' });
-    }
-  });
-
-  if (nodes.length === 0) {
-    showMessage('No graph nodes available');
-    return;
-  }
-
-  const edges = (data.edges || [])
-    .filter(e => e.source && e.target && nodeIds.has(e.source) && nodeIds.has(e.target))
-    .map(e => ({
-      from: e.source,
-      to: e.target,
-      label: e.label || '',
-      arrows: 'to',
-      font: { size: 11, color: '#666' },
-      color: { color: '#999', highlight: '#333' }
-    }));
-
-  allNodeIds = nodes.map(n => n.id);
-
-  nodesDataSet = new vis.DataSet(nodes);
-  edgesDataSet = new vis.DataSet(edges);
-
-  const container = document.getElementById('graph-container');
-  container.textContent = '';
-  const options = {
-    autoResize: true,
-    width: '100%',
-    height: '100%',
-    physics: {
-      enabled: true,
-      solver: 'forceAtlas2Based',
-      stabilization: { enabled: true, iterations: 150, fit: true },
-      forceAtlas2Based: {
-        gravitationalConstant: -60,
-        springLength: 140,
-        springConstant: 0.06
-      }
-    },
-    interaction: { hover: true, tooltipDelay: 200 },
-    layout: { improvedLayout: true },
-    edges: { smooth: { type: 'continuous' } }
-  };
-
-  if (network) network.destroy();
-  network = new vis.Network(container, { nodes: nodesDataSet, edges: edgesDataSet }, options);
-  if (typeof setupGraphClickHandler === 'function') {
-    setupGraphClickHandler(network);
-  }
-  network.once('stabilizationIterationsDone', () => {
-    network.setOptions({ physics: false });
-    network.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
-  });
-  setTimeout(() => {
-    if (network) network.fit();
-  }, 100);
-}
-
-function nodeShape(type) {
-  if (type === 'class') return 'ellipse';
-  if (type === 'datatype') return 'box';
-  return 'diamond';
-}
-
-function nodeColor(type) {
-  if (type === 'class') {
-    return { background: '#e3f2fd', border: '#1976d2' };
-  }
-  if (type === 'datatype') {
-    return { background: '#e8f5e9', border: '#2e7d32' };
-  }
-  return { background: '#fce4ec', border: '#c62828' };
-}
-
 function applySearch(query) {
   if (!nodesDataSet) return;
   const q = query.toLowerCase().trim();
@@ -257,8 +105,7 @@ function applySearch(query) {
 
 document.getElementById('tenant-select').addEventListener('change', e => {
   const tid = e.target.value;
-  loadGraph(tid);
-  loadDraft(tid);
+  loadDraft(tid).then(() => loadGraph(tid));
 });
 
 document.getElementById('search-input').addEventListener('input', e => {
@@ -282,8 +129,7 @@ document.getElementById('reload-button').addEventListener('click', () => {
   localStorage.setItem(API_KEY_STORAGE, getApiKey());
   const tid = document.getElementById('tenant-select').value;
   if (tid) {
-    loadGraph(tid);
-    if (typeof loadDraft === 'function') loadDraft(tid);
+    loadDraft(tid).then(() => loadGraph(tid));
   }
   loadTenants();
 });
@@ -291,6 +137,5 @@ document.getElementById('reload-button').addEventListener('click', () => {
 document.getElementById('api-key-input').value = localStorage.getItem(API_KEY_STORAGE) || '';
 loadTenants();
 </script>
-<script src="editor.js"></script>
 </body>
 </html>

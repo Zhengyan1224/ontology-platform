@@ -156,3 +156,4 @@
     rdfs:range xsd:decimal ;
     rdfs:label "BUDGET" .
 
+### User-defined axioms

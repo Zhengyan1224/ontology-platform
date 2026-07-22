@@ -18,6 +18,19 @@ function authHeaders() {
   return apiKey ? { 'X-API-Key': apiKey } : {};
 }
 
+function showMessage(message) {
+  if (network) {
+    network.destroy();
+    network = null;
+  }
+  const container = document.getElementById('graph-container');
+  container.textContent = '';
+  const p = document.createElement('p');
+  p.className = 'empty-state';
+  p.textContent = message;
+  container.appendChild(p);
+}
+
 async function fetchJSON(url, options) {
   const opts = options || {};
   const headers = Object.assign({}, authHeaders(), opts.headers || {});

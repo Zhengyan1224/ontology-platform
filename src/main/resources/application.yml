@@ -86,7 +86,7 @@ ontology:
         max: 1000
         cleanup-interval: 300000
       llm:
-        api-key: ${LLM_API_KEY:sk-placeholder}
+        api-key: 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
         model: nvidia/nemotron-3-ultra-550b-a55b
         base-url: https://integrate.api.nvidia.com/v1
   tenants:
