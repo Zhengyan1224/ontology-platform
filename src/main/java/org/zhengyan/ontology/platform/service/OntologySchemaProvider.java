@@ -44,6 +44,14 @@ public class OntologySchemaProvider {
         return describeTenant(tenant);
     }
 
+    public Map<String, String> getPrefixesForTenant(String tenantId) {
+        Tenant tenant = findTenant(tenantId);
+        if (tenant == null) {
+            throw new IllegalArgumentException("Unknown tenant: " + tenantId);
+        }
+        return obdaParser.parse(tenant.resolveObdaPath()).prefixes;
+    }
+
     private String describeTenant(Tenant tenant) {
         OwlSchemaParser.OwlSchema owlSchema = owlParser.parse(tenant.resolveOwlPath());
         ObdaMappingParser.ObdaSchema obdaSchema = obdaParser.parse(tenant.resolveObdaPath());

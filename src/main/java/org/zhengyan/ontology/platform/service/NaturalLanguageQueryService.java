@@ -170,18 +170,43 @@ public class NaturalLanguageQueryService {
                         .messages(List.of(userMsg))
                         .build();
                 ChatResponse response = llm.chat(request);
-                String sparql = extractSparql(response.aiMessage().text());
+                String llmOutput = response.aiMessage().text();
+                log.debug("LLM raw output: {}", llmOutput);
+                String sparql = extractSparql(llmOutput);
                 if (sparql != null && !sparql.isBlank()) {
-                    return sparql;
+                    return ensurePrefixes(tenantId, sparql);
                 }
             } catch (Exception e) {
-                log.warn("LLM call failed ({}), falling back to templates", e.getClass().getSimpleName());
+                log.warn("LLM call failed ({}): {} -- falling back to templates",
+                        e.getClass().getSimpleName(), e.getMessage(), e);
             }
         }
 
         return templateGenerator.generate(tenantId, question)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Could not generate SPARQL for question."));
+    }
+
+    private String ensurePrefixes(String tenantId, String sparql) {
+        String upper = sparql.toUpperCase();
+        if (upper.contains("PREFIX ")) {
+            return sparql;
+        }
+        try {
+            Map<String, String> prefixes = schemaProvider.getPrefixesForTenant(tenantId);
+            if (prefixes == null || prefixes.isEmpty()) {
+                return sparql;
+            }
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, String> entry : prefixes.entrySet()) {
+                sb.append("PREFIX ").append(entry.getKey()).append(" <")
+                        .append(entry.getValue()).append(">\n");
+            }
+            return sb.append(sparql).toString();
+        } catch (Exception e) {
+            log.warn("Failed to inject prefixes for tenant '{}': {}", tenantId, e.getMessage());
+            return sparql;
+        }
     }
 
     private String buildLlmPrompt(String tenantId, String schema, String question,
@@ -269,14 +294,22 @@ public class NaturalLanguageQueryService {
             return validateSparql(trimmed.trim());
         }
 
-        int idx = trimmed.indexOf("SELECT ");
-        if (idx < 0) idx = trimmed.indexOf("select ");
-        if (idx < 0) idx = trimmed.indexOf("PREFIX ");
+        int idx = earliestIndex(trimmed, "PREFIX ", "SELECT ", "CONSTRUCT ", "ASK ", "DESCRIBE ");
         if (idx >= 0) trimmed = trimmed.substring(idx);
         int endIdx = trimmed.indexOf("```");
         if (endIdx >= 0) trimmed = trimmed.substring(0, endIdx);
         trimmed = trimmed.replace("```sparql", "").replace("```", "").trim();
         return validateSparql(trimmed);
+    }
+
+    private int earliestIndex(String text, String... keywords) {
+        int earliest = -1;
+        for (String kw : keywords) {
+            int idx = text.indexOf(kw);
+            if (idx < 0) idx = text.indexOf(kw.toLowerCase());
+            if (idx >= 0 && (earliest < 0 || idx < earliest)) earliest = idx;
+        }
+        return earliest;
     }
 
     private String validateSparql(String sparql) {
